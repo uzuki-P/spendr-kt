@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">spendr-kt</string>
+    <string name="qs_tile_add_spending">Add spending</string>
+    <string name="shortcut_add_spending">Add spending</string>
+</resources>

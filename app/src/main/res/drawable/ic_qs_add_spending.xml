@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Receipt body with a plus badge, even-odd fill so system tinting works -->
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M5,2 L19,2 A1,1 0 0 1 20,3 L20,13.1 A5.5,5.5 0 0 0 18.5,12.8 A5.5,5.5 0 0 0 13,18.3 A5.5,5.5 0 0 0 13.1,19.3 L12,18.4 L9.5,20.4 L7,18.4 L4.5,20.4 L4,20 L4,3 A1,1 0 0 1 5,2 Z M17,6 L7,6 L7,7.5 L17,7.5 Z M17,9.5 L7,9.5 L7,11 L17,11 Z M17.9,13.9 A4.4,4.4 0 1 1 17.9,22.7 A4.4,4.4 0 0 1 17.9,13.9 Z M18.65,15.55 L17.15,15.55 L17.15,17.55 L15.15,17.55 L15.15,19.05 L17.15,19.05 L17.15,21.05 L18.65,21.05 L18.65,19.05 L20.65,19.05 L20.65,17.55 L18.65,17.55 Z" />
+</vector>
