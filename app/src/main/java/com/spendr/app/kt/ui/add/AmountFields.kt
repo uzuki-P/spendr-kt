@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -228,7 +229,7 @@ private fun FieldBox(
     }
 }
 
-/** 64x28 Rp/% toggle with sliding primary knob. */
+/** 64x28 Rp/% toggle with sliding primary knob, ported from RN `typeToggle`. */
 @Composable
 private fun ModeToggle(
     percentage: Boolean,
@@ -236,7 +237,7 @@ private fun ModeToggle(
     onPercentage: () -> Unit,
 ) {
     val backgroundColor = MaterialTheme.colorScheme.surface
-    val knobColor = MaterialTheme.colorScheme.primaryContainer
+    val knobColor = MaterialTheme.colorScheme.primary
     val knobOffset by animateDpAsState(if (percentage) 32.dp else 0.dp, label = "modeKnob")
     Box(
         modifier = Modifier
@@ -257,6 +258,7 @@ private fun ModeToggle(
             Box(
                 Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .clickable(onClick = onFixed),
                 contentAlignment = Alignment.Center,
             ) {
@@ -264,12 +266,13 @@ private fun ModeToggle(
                     "Rp",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (!percentage) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (!percentage) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Box(
                 Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .clickable(onClick = onPercentage),
                 contentAlignment = Alignment.Center,
             ) {
@@ -277,7 +280,7 @@ private fun ModeToggle(
                     "%",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (percentage) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (percentage) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

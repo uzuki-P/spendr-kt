@@ -16,7 +16,7 @@ android {
         applicationId = "com.spendr.app.kt"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
+        versionCode = 10
         versionName = "0.4.1"
     }
 
@@ -89,6 +89,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.material.icons.extended)
     implementation(libs.material.kolor)
     implementation(libs.androidx.room.runtime)

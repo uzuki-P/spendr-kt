@@ -103,6 +103,7 @@ fun SpendrApp(container: AppContainer) {
                     viewModel = homeViewModel,
                     onOpenAdd = { navController.navigate(Routes.add()) },
                     onOpenAddQuickAdd = { navController.navigate(Routes.add(quickAddId = it)) },
+                    onOpenDetail = { navController.navigate(Routes.detail(it)) },
                     onOpenTransactions = {
                         navController.navigate(Routes.TRANSACTIONS) { launchSingleTop = true }
                     },
@@ -200,6 +201,7 @@ fun SpendrApp(container: AppContainer) {
                 AddSpendingScreen(
                     viewModel = addViewModel,
                     onDone = { navController.popBackStack() },
+                    onOpenManageCategories = { navController.navigate(Routes.CATEGORIES) },
                 )
             }
             composable(

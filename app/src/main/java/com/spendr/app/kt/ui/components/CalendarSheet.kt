@@ -6,6 +6,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatMonthYear
@@ -133,24 +135,43 @@ fun CalendarSheet(
                 }
             }
 
-            // Day grid; month changes slide 28dp from the travel direction (RN 220ms)
+            // Day grid; month changes slide 28dp from the travel direction (RN
+            // 220ms). Horizontal swipe also advances/rewinds a month.
             val direction = remember(displayed) { derivedDirection }
-            androidx.compose.animation.AnimatedContent(
-                targetState = displayed,
-                transitionSpec = {
-                    val forward = targetState > initialState
-                    (androidx.compose.animation.slideInHorizontally(tween(220)) { if (forward) 96 else -96 } +
-                        androidx.compose.animation.fadeIn(tween(220))) togetherWith
-                        (androidx.compose.animation.slideOutHorizontally(tween(220)) { if (forward) -96 else 96 } +
-                        androidx.compose.animation.fadeOut(tween(220)))
+            Box(
+                Modifier.pointerInput(Unit) {
+                    var dragTotal = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragTotal = 0f },
+                        onDragEnd = {
+                            when {
+                                dragTotal < -80f -> advance(1)
+                                dragTotal > 80f -> advance(-1)
+                            }
+                        },
+                    ) { change, dragAmount ->
+                        change.consume()
+                        dragTotal += dragAmount
+                    }
                 },
-                label = "monthSlide",
-            ) { month ->
-                MonthGrid(
-                    month = month,
-                    selectedDate = selectedDate,
-                    onPick = onPick,
-                )
+            ) {
+                androidx.compose.animation.AnimatedContent(
+                    targetState = displayed,
+                    transitionSpec = {
+                        val forward = targetState > initialState
+                        (androidx.compose.animation.slideInHorizontally(tween(220)) { if (forward) 96 else -96 } +
+                            androidx.compose.animation.fadeIn(tween(220))) togetherWith
+                            (androidx.compose.animation.slideOutHorizontally(tween(220)) { if (forward) -96 else 96 } +
+                            androidx.compose.animation.fadeOut(tween(220)))
+                    },
+                    label = "monthSlide",
+                ) { month ->
+                    MonthGrid(
+                        month = month,
+                        selectedDate = selectedDate,
+                        onPick = onPick,
+                    )
+                }
             }
         }
     }

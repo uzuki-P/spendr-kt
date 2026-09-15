@@ -1,25 +1,32 @@
 package com.spendr.app.kt.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatMonthYear
@@ -44,10 +51,13 @@ fun monthTabLabel(cursor: Long, nowCursor: Long): String {
     }
 }
 
+private val TAB_WIDTH = 132.dp
+
 /**
- * Month pager with scrollable tabs + sliding 3 dp primary indicator, ported
- * from RN `MonthPager` (tabs "This Month"/"Last Month"/"MMMM yyyy", no future
- * months). Static window; the picker covers longer jumps.
+ * Month pager with scrolling month tabs + sliding 3 dp primary indicator,
+ * ported from RN `MonthPager` (tabs "This Month"/"Last Month"/"MMMM yyyy", no
+ * future months). The selected tab is auto-centered like the RN `scrollTo`
+ * behavior; static window — the picker covers longer jumps.
  */
 @Composable
 fun MonthPager(
@@ -60,6 +70,9 @@ fun MonthPager(
     val nowCursor = months.lastOrNull() ?: selectedCursor
     val initialIndex = months.indexOf(selectedCursor).coerceAtLeast(0)
     val pagerState = rememberPagerState(initialPage = initialIndex) { months.size }
+    val density = LocalDensity.current
+    val tabScroll = rememberScrollState()
+    var tabRowWidth by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(pagerState, months) {
         snapshotFlow { pagerState.currentPage }
@@ -74,56 +87,66 @@ fun MonthPager(
             pagerState.animateScrollToPage(target)
         }
     }
+    // RN scrollTabsToIndex: keep the selected tab centered in the bar
+    LaunchedEffect(pagerState.currentPage, tabRowWidth, months.size) {
+        if (tabRowWidth == 0) return@LaunchedEffect
+        val tabWidthPx = with(density) { TAB_WIDTH.toPx() }
+        val target = (pagerState.currentPage + 0.5f) * tabWidthPx - tabRowWidth / 2f
+        tabScroll.animateScrollTo(target.toInt().coerceIn(0, tabScroll.maxValue))
+    }
 
     androidx.compose.foundation.layout.Column(modifier = modifier) {
-        ScrollableTabRow(
-            selectedTabIndex = pagerState.currentPage,
-            modifier = Modifier.fillMaxWidth(),
-            containerColor = MaterialTheme.colorScheme.surface,
-            edgePadding = 0.dp,
-            indicator = { tabPositions ->
-                if (tabPositions.isNotEmpty()) {
-                    val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                    val index = position.toInt().coerceIn(0, tabPositions.size - 1)
-                    val next = (index + 1).coerceAtMost(tabPositions.size - 1)
-                    val fraction = (position - index).coerceIn(0f, 1f)
-                    val left = tabPositions[index].left +
-                        (tabPositions[next].left - tabPositions[index].left) * fraction
-                    val width = tabPositions[index].width +
-                        (tabPositions[next].width - tabPositions[index].width) * fraction
+        Box(
+            Modifier
+                .fillMaxWidth()
+                // size must be read OUTSIDE the scroll modifier to get the
+                // viewport width (the centering math depends on it)
+                .onSizeChanged { tabRowWidth = it.width }
+                .horizontalScroll(tabScroll),
+        ) {
+            Row(Modifier.fillMaxWidth()) {
+                months.forEachIndexed { index, cursor ->
+                    val selected = pagerState.currentPage == index
                     Box(
                         Modifier
-                            .fillMaxWidth()
-                            .wrapContentSize(Alignment.BottomStart)
-                            .offset(x = left)
-                            .width(width)
+                            .width(TAB_WIDTH)
+                            .height(48.dp)
+                            .clickable { onMonthChange(cursor) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            monthTabLabel(cursor, nowCursor).uppercase(),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+            // Indicator: 3dp pill-capped bar under the active tab (12dp inset).
+            // Lives INSIDE the scroll container so it moves with the tabs.
+            if (months.isNotEmpty()) {
+                val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                val index = position.toInt().coerceIn(0, months.size - 1)
+                val fraction = (position - index).coerceIn(0f, 1f)
+                val leftDp = TAB_WIDTH * (index + fraction)
+                Box(Modifier.matchParentSize()) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .offset(x = leftDp)
+                            .width(TAB_WIDTH)
                             .padding(horizontal = 12.dp)
                             .height(3.dp)
                             .background(
                                 MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp),
+                                RoundedCornerShape(topStart = 999.dp, topEnd = 999.dp),
                             ),
-                    )
-                }
-            },
-            divider = {},
-        ) {
-            months.forEachIndexed { index, cursor ->
-                Tab(
-                    selected = pagerState.currentPage == index,
-                    onClick = { onMonthChange(cursor) },
-                    modifier = Modifier.width(132.dp).height(48.dp),
-                ) {
-                    Text(
-                        monthTabLabel(cursor, nowCursor).uppercase(),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.SemiBold,
-                        color = if (pagerState.currentPage == index) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        maxLines = 1,
                     )
                 }
             }

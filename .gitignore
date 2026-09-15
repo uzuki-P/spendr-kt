@@ -13,3 +13,4 @@ keystore.properties
 *.keystore
 reference/og/*.apk
 reference/og/*.zip
+/_apk/

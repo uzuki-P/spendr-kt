@@ -56,6 +56,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenAdd: () -> Unit,
     onOpenAddQuickAdd: (Long) -> Unit,
+    onOpenDetail: (Long) -> Unit = {},
     onOpenTransactions: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -87,8 +88,16 @@ fun HomeScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onOpenAdd,
-                text = { Text("Add") },
-                icon = { MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer) },
+                // RN FAB order: label first, then the icon ("Add ➕")
+                content = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Add")
+                        MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.pressScale(onClick = onOpenAdd),
@@ -206,7 +215,7 @@ fun HomeScreen(
                 items(state.recent, key = { it.transaction.id }) { row ->
                     TransactionRow(
                         row = row,
-                        onClick = null,
+                        onClick = { onOpenDetail(row.transaction.id) },
                         showDate = true,
                         showDayOfWeek = true,
                         highlight = if (row.transaction.id == highlightRowId) pulse.value else 0f,

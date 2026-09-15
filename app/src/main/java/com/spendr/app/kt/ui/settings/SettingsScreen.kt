@@ -30,7 +30,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -43,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,7 +58,6 @@ import com.spendr.app.kt.data.settings.Settings
 import com.spendr.app.kt.data.settings.ThemeMode
 import com.spendr.app.kt.data.settings.VibrationStrength
 import com.spendr.app.kt.platform.vibrationMs
-import com.spendr.app.kt.ui.components.SectionHeader
 import com.spendr.app.kt.ui.theme.PRESET_SEEDS
 import com.spendr.app.kt.ui.theme.resolveSeed
 import kotlinx.coroutines.launch
@@ -78,19 +77,25 @@ fun SettingsScreen(
     var showVibrationDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
-        Column(Modifier.padding(innerPadding)) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
             TopAppBar(title = { Text("Settings", fontWeight = FontWeight.Bold) })
-
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+        },
+    ) { innerPadding ->
+        Column(
+            Modifier
+                .padding(innerPadding)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+        ) {
+            GroupLabel("Appearance")
+            Card(
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
             ) {
-                SectionHeader("Appearance")
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ChoiceTiles(
                             label = "Theme mode",
                             options = listOf(
@@ -148,50 +153,49 @@ fun SettingsScreen(
                     }
                 }
 
-                SectionHeader("Spending")
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)) {
+                GroupLabel("Spending")
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
                     Column {
-                        ListItem(
-                            headlineContent = { Text("Manage categories", fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text("Add, edit, reorder categories") },
-                            leadingContent = {
-                                com.spendr.app.kt.ui.components.CategoryIconBadge("shape-outline", "#A86086", 38.dp)
-                            },
-                            modifier = Modifier.clickable(onClick = onOpenCategories),
+                        SettingsRow(
+                            icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("shape-outline", "#A86086", 38.dp) },
+                            title = "Manage categories",
+                            subtitle = "Add, edit, reorder categories",
+                            onClick = onOpenCategories,
                         )
-                        ListItem(
-                            headlineContent = { Text("Manage quick add", fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text("Fast input shortcuts") },
-                            leadingContent = {
-                                com.spendr.app.kt.ui.components.CategoryIconBadge("lightning-bolt", "#A86829", 38.dp)
-                            },
-                            modifier = Modifier.clickable(onClick = onOpenQuickAdd),
+                        RowDivider()
+                        SettingsRow(
+                            icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("lightning-bolt", "#A86829", 38.dp) },
+                            title = "Manage quick add",
+                            subtitle = "Fast input shortcuts",
+                            onClick = onOpenQuickAdd,
                         )
-                        ListItem(
-                            headlineContent = { Text("Currency", fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text("Rupiah (IDR)") },
-                            leadingContent = {
-                                com.spendr.app.kt.ui.components.CategoryIconBadge("currency-usd", "#3C7CAB", 38.dp)
-                            },
+                        RowDivider()
+                        SettingsRow(
+                            icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("currency-usd", "#3C7CAB", 38.dp) },
+                            title = "Currency",
+                            subtitle = "Rupiah (IDR)",
                         )
                     }
                 }
 
-                SectionHeader("Data")
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)) {
+                GroupLabel("Data")
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
                     Column {
-                        ListItem(
-                            headlineContent = { Text("Backup & restore", fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text("Archives, restore, CSV import and export") },
-                            leadingContent = {
-                                com.spendr.app.kt.ui.components.CategoryIconBadge("backup-restore", "#098396", 38.dp)
-                            },
-                            modifier = Modifier.clickable(onClick = onOpenBackup),
+                        SettingsRow(
+                            icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("backup-restore", "#098396", 38.dp) },
+                            title = "Backup & restore",
+                            subtitle = "Archives, restore, CSV import and export",
+                            onClick = onOpenBackup,
                         )
-                        ListItem(
-                            headlineContent = { Text("Clear database", fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text("Erase local data and restore defaults") },
-                            leadingContent = {
+                        RowDivider()
+                        SettingsRow(
+                            icon = {
                                 Box(
                                     Modifier
                                         .size(38.dp)
@@ -208,32 +212,36 @@ fun SettingsScreen(
                                     )
                                 }
                             },
-                            modifier = Modifier.clickable(onClick = { showClearDialog = true }),
+                            title = "Clear database",
+                            subtitle = "Erase local data and restore defaults",
+                            onClick = { showClearDialog = true },
                         )
                     }
                 }
 
-                SectionHeader("Haptics")
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)) {
-                    ListItem(
-                        headlineContent = { Text("Vibration strength", fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text(describeVibration(settings)) },
-                        leadingContent = {
-                            Icon(Icons.Outlined.Vibration, contentDescription = null)
-                        },
-                        modifier = Modifier.clickable(onClick = { showVibrationDialog = true }),
+                GroupLabel("Haptics")
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    SettingsRow(
+                        icon = { Icon(Icons.Outlined.Vibration, contentDescription = null) },
+                        title = "Vibration strength",
+                        subtitle = describeVibration(settings),
+                        onClick = { showVibrationDialog = true },
                     )
                 }
 
-                SectionHeader("Developer")
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)) {
-                    ListItem(
-                        headlineContent = { Text("Debug", fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text("Developer-only tools and sample data") },
-                        leadingContent = {
-                            com.spendr.app.kt.ui.components.CategoryIconBadge("bug-outline", "#9366A4", 38.dp)
-                        },
-                        modifier = Modifier.clickable(onClick = onOpenDebug),
+                GroupLabel("Developer")
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    SettingsRow(
+                        icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("bug-outline", "#9366A4", 38.dp) },
+                        title = "Debug",
+                        subtitle = "Developer-only tools and sample data",
+                        onClick = onOpenDebug,
                     )
                 }
 
@@ -247,12 +255,12 @@ fun SettingsScreen(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
-        }
     }
 
     if (showVibrationDialog) {
         VibrationStrengthDialog(
             current = settings,
+            vibrateMs = { ms -> container.vibrator.vibrate(ms) },
             onSave = { strength, ms ->
                 scope.launch { container.settings.setVibration(strength, ms) }
                 showVibrationDialog = false
@@ -285,6 +293,70 @@ fun SettingsScreen(
             },
             dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** RN GroupLabel: small uppercase secondary label, 4dp inset. */
+@Composable
+private fun GroupLabel(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title.uppercase(),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
+    )
+}
+
+/** 1dp divider inset 16dp, between grouped rows. */
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+}
+
+/**
+ * RN ListItem row: 38dp leading badge, titleMedium 600 + bodySmall subtitle,
+ * 16/12 padding, chevron when pressable — tighter than M3 ListItem.
+ */
+@Composable
+private fun SettingsRow(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    icon: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (icon != null) icon()
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onClick != null) {
+            com.spendr.app.kt.ui.components.MciIcon(
+                "chevron-right",
+                22.dp,
+                MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -423,13 +495,16 @@ private fun SwatchGrid(selectedHex: String, onPick: (String) -> Unit) {
 @Composable
 private fun VibrationStrengthDialog(
     current: Settings,
+    vibrateMs: (Int) -> Unit,
     onSave: (VibrationStrength, Int?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(current.vibrationStrength) }
     var customMs by remember { mutableIntStateOf(current.customVibrationMs) }
-    val vibrate = com.spendr.app.kt.LocalVibrate.current
+    var lastPreviewAt by remember { mutableLongStateOf(0L) }
 
+    // RN useVibrationPreview: feel out the value being configured (not the
+    // stored one), throttled so a slider drag reads as separate taps.
     fun preview(strength: VibrationStrength, ms: Int) {
         val resolved = when (strength) {
             VibrationStrength.OFF -> 0
@@ -438,7 +513,11 @@ private fun VibrationStrengthDialog(
             VibrationStrength.STRONG -> 50
             VibrationStrength.CUSTOM -> ms
         }
-        if (resolved > 0) vibrate()
+        if (resolved <= 0) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastPreviewAt < resolved + 60L) return
+        lastPreviewAt = now
+        vibrateMs(resolved)
     }
 
     AlertDialog(

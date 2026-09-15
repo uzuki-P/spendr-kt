@@ -1,12 +1,18 @@
 package com.spendr.app.kt.ui.add
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -18,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.LocalVibrate
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.keypadPress
+import com.spendr.app.kt.ui.theme.SpendrTheme
 
 private val KEYPAD_ROWS = listOf(
     listOf("1", "2", "3"),
@@ -46,7 +53,20 @@ fun AmountKeypad(
         action()
     }
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        // RN keypadFooter + keypadSection: surface bg, hairline top border,
+        // 16/12 padding, bottom safe-area inset for the nav bar
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, SpendrTheme.colors.border),
+    ) {
+        Column(
+            Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
         // Action row: Clear | Close | Backspace
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -91,9 +111,9 @@ fun AmountKeypad(
                     )
                 }
                 if (rowIndex == KEYPAD_ROWS.size - 1) {
-                    // Bottom-right action: "Next" (primary tone)
+                    // Bottom-right action: "Next" (primary tone). The keypadPress
+                    // modifier owns the click so the press fires exactly once.
                     Surface(
-                        onClick = { press(onNext) },
                         shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.primaryContainer,
                         modifier = Modifier
@@ -102,20 +122,21 @@ fun AmountKeypad(
                             .keypadPress { press(onNext) },
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            // RN KeypadActionButton: icon first, then the label ("→ Next")
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
+                                MciIcon(
+                                    "arrow-right",
+                                    18.dp,
+                                    MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
                                 Text(
                                     "Next",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                                MciIcon(
-                                    "arrow-right",
-                                    18.dp,
-                                    MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
                             }
                         }
@@ -124,6 +145,7 @@ fun AmountKeypad(
             }
         }
     }
+}
 }
 
 @Composable
@@ -156,8 +178,8 @@ private fun KeypadActionButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    // keypadPress owns the click so the haptic fires exactly once per press
     Surface(
-        onClick = onClick,
         shape = MaterialTheme.shapes.medium,
         color = container,
         modifier = modifier

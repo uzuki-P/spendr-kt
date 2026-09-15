@@ -1,48 +1,51 @@
 # Screenshots
 
-Reference screenshots for visual-parity work. `og/` is the ground truth — the
-React Native app this project ports (captured on the user's device, dark
-theme, custom green seed, real data). `spendr-kt/` is this app (emulator,
-default pink seed, the test backup restored). When colors differ, it is the
-seed/theme — compare **layout, geometry, spacing, and copy**, not hues.
+Reference screenshots for visual-parity work. `og/` and `spendr-kt/` are
+mirrored 1:1 — same 17 screens, same emulator (`Spendr_Headless_API_36`),
+same restored test data, light theme, default pink seed. `og/` is the ground
+truth (the React Native app this project ports); compare the folders side by
+side, screen for screen.
 
-The restored test data behind the spendr-kt shots: Rp 1.153.568 through Sep 14,
+The restored test data behind both sets: Rp 1.153.568 through Sep 14,
 3-mo avg Rp 1.063.783, rows "Tangzu waner SG / Sniper elite 5 / 3 AON 26GB /
 Habibi / Bakso / Americano". If your build shows different numbers, the backup
 was not restored (see `AGENTS.md` → emulator workflow).
 
-## og/ — the reference implementation
+Files named `og-*-user-device.jpg` are earlier captures from the user's own
+device (dark theme, custom green seed), kept only as hue reference for dark
+mode.
+
+## Screen inventory (both folders)
 
 | File | Screen | What to study |
 | --- | --- | --- |
-| `home.jpg` | Home | Custom header ("Spendr" + search/settings circles), pace card (primaryContainer header, dashed 3-mo avg, gradient area fill, today marker), recent rows (42dp category circles, amount in primary), "Add +" FAB |
-| `reports.jpg` | Reports | Top bar + "Sep 2026" month pill, month tabs with 3dp indicator, hero card with hairline-divided stats (label above value), Daily trend bar chart with selection header, "Rp 290rb"-style axis labels |
-| `reports-month-picker.jpg` | Month picker sheet | ‹ year › chevrons, "THIS MONTH" filled button, text-only month tiles, selected month as filled pill, future months muted |
-| `reports-category-breakdown.jpg` | Reports (scrolled) | Category share-bar rows: icon, name, amount in primary, 6dp colored bar, "24.7% · 1x" caption |
-| `transactions.jpg` | Transactions | Back arrow, tabs, elevated summary card ("Total spending", receipt icon + "1 transaction", "Full report"), search pill, day-group headers with per-day totals |
-| `transactions-scroll-badge.jpg` | Transactions (scrolling) | Floating day badge: primaryContainer pill, "Mon, 14 Sep", left edge at ~42% height, visible while scrolling only |
-| `add-spending.jpg` | Add Spending | Labels ABOVE fields (Date/Note/Merchant (optional)), note placeholder "e.g., Premium coffee", category field with shape icon, keypad pinned above footer, "Next" in grid corner |
-| `add-spending-discount.jpg` | Add Spending (discount) | "Amount and discount" header + red "Remove discount" link, Original/Discount/You pay stacked boxes, Rp/% toggle inside the Discount box, active field gets primary border |
-
-## spendr-kt/ — this app, current state
-
-| File | Screen | Notes |
-| --- | --- | --- |
-| `home.png` | Home | Restored test data loaded; compare against `og/home.jpg` |
-| `transactions.png` | Transactions | Day-grouped list + summary card; compare against `og/transactions.jpg` |
-| `reports.png` | Reports | Hero + daily trend; compare against `og/reports.jpg` |
-| `reports-month-picker.png` | Month picker | Compare against `og/reports-month-picker.jpg` |
-| `add-spending.png` | Add Spending | Plain mode; compare against `og/add-spending.jpg` |
-| `add-spending-discount.png` | Add Spending (discount) | Compare against `og/add-spending-discount.jpg` |
-| `settings.png` | Settings | No og capture — sections ported from `src/features/settings/SettingsScreen.tsx` |
+| `home.png` | Home | Header, pace card + chart, recent rows, "Add +" FAB |
+| `transactions.png` | Transactions | Summary card, search pill + filter icon, month tabs, day headers |
+| `transactions-scroll-badge.png` | Transactions (scrolling) | Floating day badge at left, ~42% height, visible while scrolling |
+| `transaction-detail.png` | Transaction detail | Hero card (category + paid amount), details rows, record history, Duplicate/Edit footer |
+| `transaction-filter.png` | Sort & filter dialog | Pill sort tiles + caption, category field, discount checkbox, Cancel/Apply |
+| `transaction-filter-categories.png` | Multi-select categories sheet | Search pill, 3-column tiles, "All categories" tile, count + Done |
+| `reports.png` | Reports | Hero card + stats, daily trend chart with y-axis labels |
+| `reports-category-breakdown.png` | Reports (scrolled) | Category share-bar rows with caption below the bar |
+| `reports-month-picker.png` | Month picker sheet | ‹ year › chevrons, THIS MONTH pill, month grid, selected pill, muted future months |
+| `reports-month-swiped.png` | Reports (after swipe) | Month pager swipe landed on "Aug 2026" |
+| `add-spending.png` | Add Spending | Amount card, Date/Category/Note, suggestions, Save above keypad, keypad safe area |
+| `add-spending-discount.png` | Add Spending (discount) | Original/Discount/You pay, Rp/% toggle, Remove discount |
+| `add-spending-calendar.png` | Date calendar sheet | Month header + chevrons, weekday row, day grid, TODAY pill |
+| `add-spending-category-picker.png` | Category picker sheet | Drag handle, title, search pill, 3-column grid, recents first, Manage categories |
+| `settings.png` | Settings | Uppercase group labels, theme tiles, compact rows with chevrons |
+| `settings-backup-restore.png` | Backup & restore | Folder/automatic/rotation rows, back up now, CSV transfer |
+| `settings-vibration-dialog.png` | Vibration strength dialog | Radio options with ms values, custom slider |
 
 ## Refreshing these
 
-Rebuild + reinstall + restore on the emulator, then:
+Rebuild + reinstall + restore the backup on the emulator, then:
 
 ```bash
 adb exec-out screencap -p > docs/screenshots/spendr-kt/<screen>.png
 ```
 
-The test data comes from `reference/og/spendr_backup.zip` (restore via
-Settings → Backup & restore). See `AGENTS.md` for the full emulator workflow.
+Capture the `og/` set the same way against `com.spendr.app` (install
+`reference/og/spendr-og-live-release.apk`, restore the same backup). Verify
+each screen with a `uiautomator dump` text assertion before saving — it is
+easy to capture the previous screen during a transition.

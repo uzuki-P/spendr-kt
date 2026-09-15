@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,13 +29,17 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TopAppBar
@@ -38,8 +47,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +60,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +73,7 @@ import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.monthCursor
 import com.spendr.app.kt.domain.monthRange
 import com.spendr.app.kt.domain.model.DateRange
+import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.MonthPager
 import com.spendr.app.kt.ui.components.monthWindow
@@ -236,7 +246,7 @@ fun TransactionsScreen(
             modifier = Modifier.fillMaxSize(),
         ) { _ ->
             Column(Modifier.fillMaxSize()) {
-                // Summary card (elevated, radius 28)
+                // Summary card (elevated, radius 28) — label, amount, footer row
                 val monthTotal = transactions.sumOf { it.transaction.paidAmount }
                 Card(
                     shape = MaterialTheme.shapes.extraLarge,
@@ -248,55 +258,57 @@ fun TransactionsScreen(
                         .fillMaxWidth()
                         .padding(16.dp),
                 ) {
-                    Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                    Column(
+                        Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         Text(
                             "Total spending",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        Text(
+                            formatRupiah(monthTotal),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = SpendrTheme.colors.expense,
+                            maxLines = 1,
+                        )
                         Row(
-                            Modifier.fillMaxWidth(),
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                formatRupiah(monthTotal),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = SpendrTheme.colors.expense,
-                                maxLines = 1,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                MciIcon(
+                                    "receipt-text-outline",
+                                    18.dp,
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(
+                                    transactions.size.toString() + " transaction" +
+                                        if (transactions.size == 1) "" else "s",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                             TextButton(onClick = onOpenReports) {
                                 MciIcon("chart-line", 18.dp, MaterialTheme.colorScheme.primary)
                                 Text(
                                     "Full report",
-                                    fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(start = 4.dp),
                                 )
                             }
                         }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.Receipt,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                transactions.size.toString() + " transaction" +
-                                    if (transactions.size == 1) "" else "s",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
                     }
                 }
 
-                // Search pill with filter count (RN SearchBar)
+                // Search pill with inline query + filter count (RN SearchBar)
                 Surface(
-                    onClick = { showFilters = true },
                     shape = RoundedCornerShape(50),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier
@@ -304,7 +316,7 @@ fun TransactionsScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -313,26 +325,56 @@ fun TransactionsScreen(
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            text = filterState.search.ifEmpty { "Search transactions" },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (filterState.search.isEmpty() && filterState.activeCount == 0) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
+                        BasicTextField(
+                            value = filterState.search,
+                            onValueChange = { value -> viewModel.setFilters { it.copy(search = value) } },
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(vertical = 12.dp),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (filterState.search.isEmpty()) {
+                                        Text(
+                                            "Search transactions",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    inner()
+                                }
                             },
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
                         )
+                        if (filterState.search.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setFilters { it.copy(search = "") } }) {
+                                MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         Box {
                             Surface(
                                 onClick = { showFilters = true },
                                 shape = androidx.compose.foundation.shape.CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                modifier = Modifier.size(36.dp),
+                                color = if (filterState.activeCount > 0) {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                } else {
+                                    androidx.compose.ui.graphics.Color.Transparent
+                                },
+                                modifier = Modifier.size(40.dp),
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    MciIcon("tune-variant", 20.dp, MaterialTheme.colorScheme.onSurface)
+                                    MciIcon(
+                                        "tune-variant",
+                                        24.dp,
+                                        if (filterState.activeCount > 0) {
+                                            MaterialTheme.colorScheme.onSecondaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
                                 }
                             }
                             if (filterState.activeCount > 0) {
@@ -347,7 +389,6 @@ fun TransactionsScreen(
                                         Text(
                                             filterState.activeCount.toString(),
                                             style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onPrimary,
                                         )
                                     }
@@ -407,13 +448,15 @@ fun TransactionsScreen(
                         }
                         current
                     }
-                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                        // RN scrollDayBadge: absolute, left 8dp, top 42% of the page
                         ScrollDateBadge(
                             label = badgeLabel,
                             visible = badgeVisible,
                             modifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .padding(start = 16.dp),
+                                .align(Alignment.TopStart)
+                                .offset(y = maxHeight * 0.42f)
+                                .padding(start = 8.dp),
                         )
                         LazyColumn(Modifier.fillMaxSize(), state = listState) {
                             grouped.forEach { group ->
@@ -449,92 +492,378 @@ private fun FilterDialog(
     var categoryIds by remember { mutableStateOf(current.categoryIds) }
     var discountOnly by remember { mutableStateOf(current.discountOnly) }
     var sortMode by remember { mutableStateOf(current.sortMode) }
+    var showCategoryPicker by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    val stagedChanged = categoryIds.isNotEmpty() || discountOnly || sortMode != SortMode.DATE_DESC
+
+    // RN Sort & filter: centered dialog, surfaceContainerHigh, radius 28
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        title = { Text("Sort & filter") },
-        text = {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    label = { Text("Search note, merchant, or category") },
-                    singleLine = true,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(20.dp)) {
+                Text(
+                    "Sort & filter",
+                    style = MaterialTheme.typography.headlineSmall,
                 )
-
-                Text("Sort", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                SortMode.entries.forEach { mode ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { sortMode = mode },
-                    ) {
-                        RadioButton(selected = sortMode == mode, onClick = { sortMode = mode })
-                        MciIcon(mode.glyph, 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    Modifier
+                        .padding(top = 8.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Sort by: 4 pill tiles, selected label caption below
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            mode.label,
-                            modifier = Modifier.padding(start = 8.dp),
-                            style = MaterialTheme.typography.bodyMedium,
+                            "Sort by",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SortTile(SortMode.DATE_DESC == sortMode, "sort-calendar-descending", Modifier.weight(1f)) { sortMode = SortMode.DATE_DESC }
+                            SortTile(SortMode.DATE_ASC == sortMode, "sort-calendar-ascending", Modifier.weight(1f)) { sortMode = SortMode.DATE_ASC }
+                            SortTile(SortMode.AMOUNT_DESC == sortMode, "sort-numeric-descending", Modifier.weight(1f)) { sortMode = SortMode.AMOUNT_DESC }
+                            SortTile(SortMode.AMOUNT_ASC == sortMode, "sort-numeric-ascending", Modifier.weight(1f)) { sortMode = SortMode.AMOUNT_ASC }
+                        }
+                        Text(
+                            sortMode.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .offset(y = (-8).dp),
                         )
                     }
-                }
 
-                Text("Categories", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                categories.forEach { category ->
-                    val checked = category.id in categoryIds
+                    // Category: tappable field row opening the multi-select sheet
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Category",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Surface(
+                            onClick = { showCategoryPicker = true },
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                when {
+                                    categoryIds.isEmpty() -> MciIcon(
+                                        "shape-outline", 24.dp,
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    categoryIds.size == 1 -> CategoryIconBadge(
+                                        icon = categories.firstOrNull { it.id == categoryIds[0] }?.icon ?: "shape-outline",
+                                        color = categories.firstOrNull { it.id == categoryIds[0] }?.color ?: "#888888",
+                                        size = 40.dp,
+                                    )
+                                    else -> MciIcon(
+                                        "shape-plus-outline", 24.dp,
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        when {
+                                            categoryIds.isEmpty() -> "All categories"
+                                            categoryIds.size == 1 ->
+                                                categories.firstOrNull { it.id == categoryIds[0] }?.name
+                                                    ?: "1 category"
+                                            else -> "${categoryIds.size} categories"
+                                        },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        "Tap to search and select multiple",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                MciIcon("chevron-right", 24.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    // Discount only: checkbox option row
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                categoryIds = if (checked) {
-                                    categoryIds - category.id
-                                } else {
-                                    categoryIds + category.id
-                                }
-                            },
+                            .clickable { discountOnly = !discountOnly }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
                     ) {
-                        Checkbox(checked = checked, onCheckedChange = {
-                            categoryIds = if (it) categoryIds + category.id else categoryIds - category.id
-                        })
-                        Text(category.name, style = MaterialTheme.typography.bodyMedium)
+                        MciIcon(
+                            if (discountOnly) "checkbox-marked" else "checkbox-blank-outline",
+                            24.dp,
+                            if (discountOnly) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                        Text("Discount only", style = MaterialTheme.typography.titleMedium)
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = discountOnly, onCheckedChange = { discountOnly = it })
-                    Text("Discount only", style = MaterialTheme.typography.bodyMedium)
+                // Actions: [Clear all] Cancel, Apply
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (stagedChanged) {
+                        TextButton(onClick = {
+                            categoryIds = emptyList()
+                            discountOnly = false
+                            sortMode = SortMode.DATE_DESC
+                        }) { Text("Clear all") }
+                    }
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    Button(onClick = {
+                        onApply(current.copy(search = search, categoryIds = categoryIds, discountOnly = discountOnly, sortMode = sortMode))
+                    }) { Text("Apply") }
                 }
             }
+        }
+    }
+
+    if (showCategoryPicker) {
+        CategoryMultiSelectSheet(
+            categories = categories,
+            selectedIds = categoryIds,
+            onDone = {
+                categoryIds = it
+                showCategoryPicker = false
+            },
+            onDismiss = { showCategoryPicker = false },
+        )
+    }
+}
+
+/** RN sort pill tile: icon-only pill, selected = primaryContainer. */
+@Composable
+private fun SortTile(
+    selected: Boolean,
+    glyph: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onApply(current.copy(search = search, categoryIds = categoryIds, discountOnly = discountOnly, sortMode = sortMode))
+        modifier = modifier.height(48.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            MciIcon(
+                glyph,
+                24.dp,
+                if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 },
-            ) { Text("Apply") }
-        },
-        dismissButton = {
-            Row {
-                TextButton(
-                    onClick = {
-                        onApply(
-                            TransactionsViewModel.Filters(
-                                search = "",
-                                categoryIds = emptyList(),
-                                discountOnly = false,
-                                sortMode = SortMode.DATE_DESC,
-                                range = current.range,
-                            ),
-                        )
-                    },
-                ) { Text("Clear all") }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+            )
+        }
+    }
+}
+
+/** RN CategoryPicker in multiple mode: search pill + 3-column grid + count/Done footer. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryMultiSelectSheet(
+    categories: List<com.spendr.app.kt.data.db.entity.CategoryEntity>,
+    selectedIds: List<Long>,
+    onDone: (List<Long>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var draft by remember { mutableStateOf(selectedIds) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp)) {
+            Text(
+                "Select categories",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+            // Search pill
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.padding(start = 16.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    MciIcon("magnify", 20.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 14.dp),
+                        decorationBox = { inner ->
+                            Box {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        "Search categories",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = SpendrTheme.colors.textTertiary,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                    )
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
+                            MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
+            val filtered = remember(categories, query) {
+                categories.filter { it.name.contains(query.trim(), ignoreCase = true) }
+            }
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = 8.dp),
+            ) {
+                if (query.isEmpty()) {
+                    CategoryTile(
+                        label = "All categories",
+                        icon = null,
+                        color = null,
+                        selected = draft.isEmpty(),
+                        onClick = { draft = emptyList() },
+                        modifier = Modifier.fillMaxWidth(1f / 3f),
+                    )
+                }
+                filtered.chunked(3).forEach { rowCategories ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (category in rowCategories) {
+                            CategoryTile(
+                                label = category.name,
+                                icon = category.icon,
+                                color = category.color,
+                                selected = category.id in draft,
+                                onClick = {
+                                    draft = if (category.id in draft) draft - category.id else draft + category.id
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(3 - rowCategories.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    if (draft.isEmpty()) "All categories" else "${draft.size} selected",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Button(onClick = { onDone(draft) }) { Text("Done") }
+            }
+        }
+    }
+}
+
+/** RN CategoryPicker tile: bordered rounded square, icon circle over the name. */
+@Composable
+private fun CategoryTile(
+    label: String,
+    icon: String?,
+    color: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
         },
-    )
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent,
+        ),
+        modifier = modifier,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(vertical = 12.dp),
+        ) {
+            if (icon != null && color != null) {
+                CategoryIconBadge(icon = icon, color = color, size = 40.dp)
+            } else {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MciIcon("shape-outline", 20.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }

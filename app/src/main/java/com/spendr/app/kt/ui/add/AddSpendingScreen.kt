@@ -2,13 +2,19 @@ package com.spendr.app.kt.ui.add
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -38,6 +44,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,12 +61,13 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.LocalVibrate
 import com.spendr.app.kt.domain.formatDate
-import com.spendr.app.kt.domain.formatDayShort
 import com.spendr.app.kt.domain.formatFullDate
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.ui.add.AddSpendingViewModel.SuggestionMode
@@ -68,12 +76,14 @@ import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
+// RN fields are borderless rounded surfaces — no focus underline
 private val INPUT_COLORS @Composable get() = TextFieldDefaults.colors(
     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
     disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+    focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
+    disabledIndicatorColor = Color.Transparent,
 )
 
 private enum class FocusStage { ORIGINAL, DISCOUNT, PCT, AMOUNT, CATEGORY, NOTE, MERCHANT }
@@ -83,6 +93,7 @@ private enum class FocusStage { ORIGINAL, DISCOUNT, PCT, AMOUNT, CATEGORY, NOTE,
 fun AddSpendingScreen(
     viewModel: AddSpendingViewModel,
     onDone: () -> Unit,
+    onOpenManageCategories: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val categories by viewModel.categories.collectAsState()
@@ -140,7 +151,10 @@ fun AddSpendingScreen(
 
 
     val editing = state.editing
+    // RN back grammar: close the keypad first, then confirm discard.
+    // The keypad handler is registered last so it wins while enabled.
     BackHandler(enabled = !editing && state.draft.paidAmount > 0) { showDiscardDialog = true }
+    BackHandler(enabled = keypadVisible) { keypadVisible = false }
 
     if (showDiscardDialog) {
         AlertDialog(
@@ -196,6 +210,10 @@ fun AddSpendingScreen(
                     viewModel.setCategory(it)
                     showCategoryPicker = false
                 },
+                onManage = {
+                    showCategoryPicker = false
+                    onOpenManageCategories()
+                },
             )
         }
     }
@@ -226,86 +244,72 @@ fun AddSpendingScreen(
             )
         },
         bottomBar = {
-            // RN: keypad pinned above the FooterBar
-            Column {
-                AnimatedVisibility(
-                    visible = keypadVisible,
-                    enter = slideInVertically(animationSpec = tween(240), initialOffsetY = { it }) +
-                        fadeIn(tween(240)),
-                    exit = slideOutVertically(animationSpec = tween(200), targetOffsetY = { it }) +
-                        fadeOut(tween(200)),
-                ) {
-                    AmountKeypad(
-                        onDigit = viewModel::append,
-                        onBackspace = viewModel::backspace,
-                        onClear = viewModel::clearActive,
-                        onClose = { keypadVisible = false },
-                        onNext = { advanceFocus() },
-                    )
-                }
-                // FooterBar: surface bg, hairline top border, Save with check icon
-                Surface(color = MaterialTheme.colorScheme.surface) {
-                    Column {
-                        HorizontalDivider(color = SpendrTheme.colors.border)
-                        Button(
-                            onClick = { viewModel.save(onSaved = onDone) },
-                            enabled = state.draft.saveEnabled,
-                            shape = MaterialTheme.shapes.medium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = null)
-                            Text(
-                                if (editing) "Save changes" else "Save",
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
-                    }
-                }
+            // RN: the keypad is the pinned bottom sibling; the FooterBar (Save)
+            // lives at the end of the form column, so Save sits ABOVE the keypad.
+            AnimatedVisibility(
+                visible = keypadVisible,
+                enter = slideInVertically(animationSpec = tween(240), initialOffsetY = { it }) +
+                    fadeIn(tween(240)),
+                exit = slideOutVertically(animationSpec = tween(200), targetOffsetY = { it }) +
+                    fadeOut(tween(200)),
+            ) {
+                AmountKeypad(
+                    onDigit = viewModel::append,
+                    onBackspace = viewModel::backspace,
+                    onClear = viewModel::clearActive,
+                    onClose = { keypadVisible = false },
+                    onNext = { advanceFocus() },
+                )
             }
         },
     ) { innerPadding ->
         Column(
-            modifier = Modifier
+            Modifier
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .fillMaxSize(),
         ) {
-            AmountFields(
-                draft = state.draft,
-                onSelectField = { field ->
-                    viewModel.selectField(field)
-                    focusStage = when (field) {
-                        com.spendr.app.kt.domain.AmountField.ORIGINAL -> FocusStage.ORIGINAL
-                        com.spendr.app.kt.domain.AmountField.DISCOUNT -> FocusStage.DISCOUNT
-                        com.spendr.app.kt.domain.AmountField.PCT -> FocusStage.PCT
-                        else -> FocusStage.AMOUNT
-                    }
-                    keypadVisible = true
-                },
-                onToggleDiscount = viewModel::toggleDiscount,
-                onToggleDiscountType = viewModel::toggleDiscountType,
-            )
-
-            // Date (RN: label above the field)
-            Column {
-                Text(
-                    "Date",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    // RN contentContainer: padding 16, section gap 12
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AmountFields(
+                    draft = state.draft,
+                    onSelectField = { field ->
+                        viewModel.selectField(field)
+                        focusStage = when (field) {
+                            com.spendr.app.kt.domain.AmountField.ORIGINAL -> FocusStage.ORIGINAL
+                            com.spendr.app.kt.domain.AmountField.DISCOUNT -> FocusStage.DISCOUNT
+                            com.spendr.app.kt.domain.AmountField.PCT -> FocusStage.PCT
+                            else -> FocusStage.AMOUNT
+                        }
+                        keypadVisible = true
+                    },
+                    onToggleDiscount = viewModel::toggleDiscount,
+                    onToggleDiscountType = viewModel::toggleDiscountType,
                 )
+
+                // Date (RN: label above the field)
+                Column {
+                    Text(
+                        "Date",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                    )
                 Surface(
                     onClick = { showDatePicker = true },
                     shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SpendrTheme.colors.border),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                        Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -320,27 +324,28 @@ fun AddSpendingScreen(
                         )
                     }
                 }
-            }
+                }
 
-            // Category select field (RN: label-less field with shape icon)
+            // Category select field (RN: 42dp icon, 16/8 padding, hairline border)
             Surface(
                 onClick = { showCategoryPicker = true },
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, SpendrTheme.colors.border),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 val selected = categories.firstOrNull { it.id == state.categoryId }
                 Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 48.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (selected != null) {
-                        CategoryIconBadge(icon = selected.icon, color = selected.color, size = 28.dp)
+                        CategoryIconBadge(icon = selected.icon, color = selected.color, size = 42.dp)
                     } else {
                         com.spendr.app.kt.ui.components.MciIcon(
                             "shape-outline",
-                            22.dp,
+                            24.dp,
                             MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -367,31 +372,44 @@ fun AddSpendingScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
                 )
+                // RN ThemedTextInput: rounded 1dp border, primary when focused
+                val noteInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val noteFocused by noteInteraction.collectIsFocusedAsState()
                 TextField(
                     value = state.note,
                     onValueChange = viewModel::setNote,
                     placeholder = { Text("e.g., Premium coffee") },
                     colors = INPUT_COLORS,
                     shape = MaterialTheme.shapes.medium,
+                    interactionSource = noteInteraction,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            if (noteFocused) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                SpendrTheme.colors.border
+                            },
+                            MaterialTheme.shapes.medium,
+                        )
                         .focusRequester(noteFocus),
                     singleLine = true,
                 )
             }
 
-            // Note suggestions (RN NoteSuggestions style)
-            if (suggestions.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    suggestions.take(6).forEach { suggestion ->
-                        SuggestionRow(
-                            suggestion = suggestion,
-                            onFull = { viewModel.applySuggestion(suggestion, SuggestionMode.FULL) },
-                            onNoteOnly = { viewModel.applySuggestion(suggestion, SuggestionMode.NOTE_ONLY) },
-                        )
+                // Note suggestions (RN NoteSuggestions style)
+                if (suggestions.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        suggestions.take(6).forEach { suggestion ->
+                            SuggestionRow(
+                                suggestion = suggestion,
+                                onFull = { viewModel.applySuggestion(suggestion, SuggestionMode.FULL) },
+                                onNoteOnly = { viewModel.applySuggestion(suggestion, SuggestionMode.NOTE_ONLY) },
+                            )
+                        }
                     }
                 }
-            }
 
             Column {
                 Text(
@@ -401,26 +419,59 @@ fun AddSpendingScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
                 )
+                val merchantInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val merchantFocused by merchantInteraction.collectIsFocusedAsState()
                 TextField(
                     value = state.merchant,
                     onValueChange = viewModel::setMerchant,
                     placeholder = { Text("e.g., Indomaret") },
                     colors = INPUT_COLORS,
                     shape = MaterialTheme.shapes.medium,
+                    interactionSource = merchantInteraction,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            if (merchantFocused) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                SpendrTheme.colors.border
+                            },
+                            MaterialTheme.shapes.medium,
+                        )
                         .focusRequester(merchantFocus),
                     singleLine = true,
                 )
             }
 
 
-            if (state.amountError) {
-                Text(
-                    "Amount not entered",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                if (state.amountError) {
+                    Text(
+                        "Amount not entered",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+
+            // RN FooterBar sits between the scroll area and the keypad:
+            // hairline top border, filled Save (surfaceVariant/textTertiary disabled)
+            Column {
+                HorizontalDivider(color = SpendrTheme.colors.border)
+                Button(
+                    onClick = { viewModel.save(onSaved = onDone) },
+                    enabled = state.draft.saveEnabled,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(
+                        if (editing) "Save changes" else "Save",
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -454,16 +505,22 @@ private fun SuggestionRow(
                     suggestion.note,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     buildString {
                         append(suggestion.categoryName)
                         suggestion.merchant?.let { append(" • ").append(it) }
-                        append(" • ").append(formatDayShort(suggestion.lastDate))
-                        append(" • Save ").append(formatRupiah(suggestion.lastPaidAmount))
+                        append(" • ").append(formatDate(suggestion.lastDate))
+                        if ((suggestion.lastDiscountAmount ?: 0) > 0) {
+                            append(" • Save ").append(formatRupiah(suggestion.lastDiscountAmount!!))
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -506,6 +563,7 @@ private fun CategoryPickerContent(
     recentCategoryIds: List<Long>,
     selectedId: Long?,
     onSelect: (Long) -> Unit,
+    onManage: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     val ordered = remember(categories, recentCategoryIds, query) {
@@ -513,37 +571,71 @@ private fun CategoryPickerContent(
         val recents = recentCategoryIds.mapNotNull { id -> matching.firstOrNull { it.id == id } }
         (recents + matching.filterNot { c -> recents.any { it.id == c.id } }).distinct()
     }
-    Column(Modifier.padding(bottom = 24.dp)) {
+    // RN CategoryPicker: handle + titleLarge, pill search, 3-column grid,
+    // "Manage categories" link pinned at the bottom
+    Column(Modifier.padding(start = 16.dp, end = 16.dp)) {
         Text(
             "Select category",
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(bottom = 12.dp),
         )
-        androidx.compose.material3.OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            placeholder = { Text("Search categories") },
+        Surface(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-            colors = INPUT_COLORS,
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        )
-        HorizontalDivider(Modifier.padding(top = 8.dp))
-        if (ordered.isEmpty()) {
-            Text(
-                "No categories match “$query”.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
-            )
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.padding(start = 16.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                com.spendr.app.kt.ui.components.MciIcon(
+                    "magnify",
+                    20.dp,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    singleLine = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 14.dp),
+                    decorationBox = { inner ->
+                        Box {
+                            if (query.isEmpty()) {
+                                Text(
+                                    "Search categories",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = SpendrTheme.colors.textTertiary,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
+                        com.spendr.app.kt.ui.components.MciIcon(
+                            "close-circle",
+                            18.dp,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .height(360.dp),
         ) {
             items(ordered, key = { it.id }) { category ->
                 val selected = category.id == selectedId
@@ -551,29 +643,52 @@ private fun CategoryPickerContent(
                     onClick = { onSelect(category.id) },
                     shape = MaterialTheme.shapes.medium,
                     color = if (selected) {
-                        MaterialTheme.colorScheme.secondaryContainer
+                        MaterialTheme.colorScheme.primaryContainer
                     } else {
-                        MaterialTheme.colorScheme.surfaceContainerHighest
+                        MaterialTheme.colorScheme.surfaceVariant
                     },
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            Color.Transparent
+                        },
+                    ),
                     modifier = Modifier
                         .padding(4.dp)
                         .pressScale(onClick = { onSelect(category.id) }),
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
                     ) {
                         CategoryIconBadge(icon = category.icon, color = category.color, size = 40.dp)
                         Text(
                             category.name,
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
                             maxLines = 1,
-                            modifier = Modifier.padding(top = 6.dp),
                         )
                     }
                 }
             }
         }
+        Text(
+            "Manage categories",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onManage)
+                .padding(vertical = 12.dp),
+        )
     }
 }

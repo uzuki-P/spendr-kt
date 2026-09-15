@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spendr.app.kt.LocalVibrate
@@ -116,6 +117,7 @@ fun SpendingPaceCard(
                     fontWeight = FontWeight.Bold,
                     color = onContainerMuted,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     headerValue,
@@ -302,14 +304,16 @@ private fun PaceChart(
                     endY = plotHeight,
                 ),
             )
-            // Average (dashed 5 4, 1.5dp, textTertiary)
+            // Average (dashed 5 4 dp, 1.5dp, textTertiary)
             if (avgShown.size >= 2) {
                 drawPath(
                     monotonePath(avgShown, ::xFor, ::yFor),
                     color = tertiaryColor,
                     style = Stroke(
                         width = 1.5.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 4f)),
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(5.dp.toPx(), 4.dp.toPx()),
+                        ),
                     ),
                 )
             }
@@ -323,7 +327,8 @@ private fun PaceChart(
         // Scrub indicators
         if (hasData && scrubIndex in 0 until n) {
             val x = xFor(scrubIndex)
-            drawLine(primaryColor, Offset(x, 0f), Offset(x, plotHeight), 1.5f)
+            // RN scrub guideline: 1.5dp, primary at opacity 0.4
+            drawLine(primaryColor.copy(alpha = 0.4f), Offset(x, 0f), Offset(x, plotHeight), 1.5f)
             val avgValue = avgShown.getOrNull(min(scrubIndex, avgShown.size - 1))
             if (avgValue != null && pace.hasRealAverage) {
                 drawCircle(surfaceColor, 4.dp.toPx(), Offset(x, yFor(avgValue)))
@@ -331,8 +336,9 @@ private fun PaceChart(
             }
             val primaryValue = pace.thisMonth.getOrNull(min(scrubIndex, pace.thisMonth.size - 1))
             if (primaryValue != null) {
-                drawCircle(surfaceColor, 7.dp.toPx(), Offset(x, yFor(primaryValue)))
-                drawCircle(primaryColor, 6.dp.toPx(), Offset(x, yFor(primaryValue)))
+                // RN scrubDot: 12dp circle, 2.5dp surface border, primary fill
+                drawCircle(surfaceColor, 6.dp.toPx(), Offset(x, yFor(primaryValue)))
+                drawCircle(primaryColor, 3.5.dp.toPx(), Offset(x, yFor(primaryValue)))
             }
         }
 
