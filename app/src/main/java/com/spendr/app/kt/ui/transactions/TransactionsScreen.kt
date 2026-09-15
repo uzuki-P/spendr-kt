@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
@@ -31,6 +32,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -131,6 +134,7 @@ fun TransactionsScreen(
     onOpenReports: () -> Unit,
     onDuplicate: (Long) -> Unit,
     prefilteredCategoryId: Long? = null,
+    onBack: () -> Unit = {},
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
@@ -207,7 +211,24 @@ fun TransactionsScreen(
         }
     }
 
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+    androidx.compose.material3.Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Transactions", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        Column(
+            Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
+        ) {
         MonthPager(
             selectedCursor = monthCursorState,
             months = months,
@@ -265,7 +286,8 @@ fun TransactionsScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
-                                formatMonthYear(monthCursorState) + " · " + transactions.size + " transaction(s)",
+                                transactions.size.toString() + " transaction" +
+                                    if (transactions.size == 1) "" else "s",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
@@ -292,13 +314,7 @@ fun TransactionsScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text = filterState.search.ifEmpty {
-                                if (filterState.activeCount > 0) {
-                                    filterState.activeCount.toString() + " filter(s) active"
-                                } else {
-                                    "Search note, merchant, or category"
-                                }
-                            },
+                            text = filterState.search.ifEmpty { "Search transactions" },
                             style = MaterialTheme.typography.bodyLarge,
                             color = if (filterState.search.isEmpty() && filterState.activeCount == 0) {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -308,27 +324,36 @@ fun TransactionsScreen(
                             modifier = Modifier.weight(1f),
                             maxLines = 1,
                         )
-                        if (filterState.activeCount > 0) {
+                        Box {
                             Surface(
+                                onClick = { showFilters = true },
                                 shape = androidx.compose.foundation.shape.CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                modifier = Modifier.size(36.dp),
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        filterState.activeCount.toString(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                    )
+                                    MciIcon("tune-variant", 20.dp, MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                            if (filterState.activeCount > 0) {
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .align(Alignment.TopEnd),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            filterState.activeCount.toString(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                        )
+                                    }
                                 }
                             }
                         }
-                        MciIcon(
-                            "tune-variant",
-                            20.dp,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                 }
 
@@ -387,7 +412,7 @@ fun TransactionsScreen(
                             label = badgeLabel,
                             visible = badgeVisible,
                             modifier = Modifier
-                                .align(Alignment.TopStart)
+                                .align(Alignment.CenterStart)
                                 .padding(start = 16.dp),
                         )
                         LazyColumn(Modifier.fillMaxSize(), state = listState) {
@@ -409,17 +434,7 @@ fun TransactionsScreen(
                 }
             }
         }
-
-        ExtendedFloatingActionButton(
-            onClick = onOpenAdd,
-            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-            text = { Text("Add") },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
+    }
     }
 }
 

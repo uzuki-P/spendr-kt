@@ -16,8 +16,8 @@ android {
         applicationId = "com.spendr.app.kt"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.3.4"
+        versionCode = 9
+        versionName = "0.4.1"
     }
 
 // Release signing: a user-provided keystore via keystore.properties at the repo

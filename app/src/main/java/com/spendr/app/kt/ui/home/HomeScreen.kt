@@ -87,10 +87,11 @@ fun HomeScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onOpenAdd,
-                icon = { MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer) },
                 text = { Text("Add") },
+                icon = { MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer) },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.pressScale(onClick = onOpenAdd),
             )
         },
         containerColor = MaterialTheme.colorScheme.background,

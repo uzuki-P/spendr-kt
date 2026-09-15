@@ -138,6 +138,7 @@ fun SpendrApp(container: AppContainer) {
                     onOpenReports = { navController.navigate(Routes.REPORTS) },
                     onDuplicate = transactionsViewModel::duplicate,
                     prefilteredCategoryId = entry.arguments?.getString("categoryId")?.toLongOrNull(),
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.REPORTS) {
@@ -148,12 +149,13 @@ fun SpendrApp(container: AppContainer) {
                 )
                 ReportsScreen(
                     viewModel = reportsViewModel,
-                    onSeeAll = { cursor ->
+                    onSeeAll = { _ ->
                         navController.navigate(Routes.TRANSACTIONS) { launchSingleTop = true }
                     },
                     onOpenCategory = { categoryId ->
                         navController.navigate("transactions?categoryId=$categoryId") { launchSingleTop = true }
                     },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

@@ -59,87 +59,92 @@ fun AmountFields(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (!draft.hasDiscount) {
-            AmountRow(
+            FieldBox(
                 label = "You pay",
                 value = displayAmount(draft.amountStr).ifEmpty { "0" },
+                suffix = "Rp",
                 active = draft.activeField == AmountField.AMOUNT,
                 emphasized = true,
                 onClick = { onSelectField(AmountField.AMOUNT) },
             )
-            Surface(
-                onClick = onToggleDiscount,
-                shape = RoundedCornerShape(12.dp),
-                color = Color.Transparent,
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp),
+                    .height(44.dp)
+                    .clickable(onClick = onToggleDiscount),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                ) {
-                    Icon(
-                        Icons.Outlined.Sell,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        "Add discount",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+                com.spendr.app.kt.ui.components.MciIcon(
+                    "sale-outline",
+                    18.dp,
+                    MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    "Add discount",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
             }
         } else {
-            Text(
-                "Amount and discount",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Amount and discount",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Remove discount",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.clickable(onClick = onToggleDiscount),
+                )
+            }
             FieldBox(
-                label = "Original price",
+                label = "Original",
                 value = displayAmount(draft.originalStr).ifEmpty { "0" },
                 suffix = "Rp",
                 active = draft.activeField == AmountField.ORIGINAL,
                 onClick = { onSelectField(AmountField.ORIGINAL) },
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FieldBox(
-                    label = "Discount",
-                    value = if (draft.discountMode == DiscountMode.PERCENTAGE) {
-                        displayAmount(draft.pctStr).ifEmpty { "0" }
-                    } else {
-                        displayAmount(draft.discountStr).ifEmpty { "0" }
-                    },
-                    suffix = if (draft.discountMode == DiscountMode.PERCENTAGE) "%" else "Rp",
-                    active = draft.activeField == AmountField.DISCOUNT || draft.activeField == AmountField.PCT,
-                    onClick = {
-                        onSelectField(
-                            if (draft.discountMode == DiscountMode.PERCENTAGE) AmountField.PCT else AmountField.DISCOUNT,
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                ModeToggle(
-                    percentage = draft.discountMode == DiscountMode.PERCENTAGE,
-                    onFixed = { if (draft.discountMode != DiscountMode.FIXED) onToggleDiscountType() },
-                    onPercentage = { if (draft.discountMode != DiscountMode.PERCENTAGE) onToggleDiscountType() },
-                )
-            }
-            AmountRow(
+            FieldBox(
+                label = "Discount",
+                value = if (draft.discountMode == DiscountMode.PERCENTAGE) {
+                    displayAmount(draft.pctStr).ifEmpty { "0" }
+                } else {
+                    displayAmount(draft.discountStr).ifEmpty { "0" }
+                },
+                suffix = null,
+                active = draft.activeField == AmountField.DISCOUNT || draft.activeField == AmountField.PCT,
+                onClick = {
+                    onSelectField(
+                        if (draft.discountMode == DiscountMode.PERCENTAGE) AmountField.PCT else AmountField.DISCOUNT,
+                    )
+                },
+                trailing = {
+                    ModeToggle(
+                        percentage = draft.discountMode == DiscountMode.PERCENTAGE,
+                        onFixed = { if (draft.discountMode != DiscountMode.FIXED) onToggleDiscountType() },
+                        onPercentage = { if (draft.discountMode != DiscountMode.PERCENTAGE) onToggleDiscountType() },
+                    )
+                },
+            )
+            FieldBox(
                 label = "You pay",
                 value = displayAmount(draft.amountStr).ifEmpty { "0" },
+                suffix = "Rp",
                 active = draft.activeField == AmountField.AMOUNT,
                 emphasized = true,
-                onClick = { onSelectField(AmountField.AMOUNT) },
                 showSavings = draft.discountAmount > 0,
                 savedAmount = draft.discountAmount,
+                onClick = { onSelectField(AmountField.AMOUNT) },
             )
         }
     }
@@ -155,10 +160,14 @@ private fun Modifier.surfaceHighest(): Modifier = this.background(
 private fun FieldBox(
     label: String,
     value: String,
-    suffix: String,
+    suffix: String?,
     active: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+    showSavings: Boolean = false,
+    savedAmount: Long = 0,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val borderColor = if (active) MaterialTheme.colorScheme.primary else SpendrTheme.colors.border
     Column(
@@ -181,55 +190,39 @@ private fun FieldBox(
         ) {
             Text(
                 value,
-                style = MaterialTheme.typography.titleMedium,
+                style = if (emphasized) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                suffix,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AmountRow(
-    label: String,
-    value: String,
-    active: Boolean,
-    onClick: () -> Unit,
-    emphasized: Boolean = false,
-    showSavings: Boolean = false,
-    savedAmount: Long = 0,
-) {
-    FieldBox(
-        label = label,
-        value = value,
-        suffix = "Rp",
-        active = active,
-        onClick = onClick,
-    )
-    if (showSavings && savedAmount > 0) {
-        Row(
-            horizontalArrangement = Arrangement.End,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "Save Rp",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SpendrTheme.colors.success,
-                )
-                Text(
-                    formatAmount(savedAmount),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = SpendrTheme.colors.success,
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (showSavings && savedAmount > 0) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "Save Rp",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SpendrTheme.colors.success,
+                        )
+                        Text(
+                            formatAmount(savedAmount),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = SpendrTheme.colors.success,
+                        )
+                    }
+                }
+                if (trailing != null) trailing()
+                if (suffix != null) {
+                    Text(
+                        suffix,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

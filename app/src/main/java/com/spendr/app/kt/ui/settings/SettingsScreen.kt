@@ -238,7 +238,7 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    "spendr-kt v0.3.4",
+                    "spendr-kt v0.4.1",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier

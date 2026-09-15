@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Bolt
@@ -207,7 +207,7 @@ fun AddSpendingScreen(
                 title = { Text(if (editing) "Edit Spending" else "Add Spending", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -289,31 +289,40 @@ fun AddSpendingScreen(
                 onToggleDiscountType = viewModel::toggleDiscountType,
             )
 
-            // Date
-            Surface(
-                onClick = { showDatePicker = true },
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            // Date (RN: label above the field)
+            Column {
+                Text(
+                    "Date",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                )
+                Surface(
+                    onClick = { showDatePicker = true },
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    com.spendr.app.kt.ui.components.MciIcon(
-                        "calendar-blank-outline",
-                        20.dp,
-                        MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        formatFullDate(state.dateMs),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        com.spendr.app.kt.ui.components.MciIcon(
+                            "calendar-blank-outline",
+                            20.dp,
+                            MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            formatFullDate(state.dateMs),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 }
             }
 
-            // Category select field
+            // Category select field (RN: label-less field with shape icon)
             Surface(
                 onClick = { showCategoryPicker = true },
                 shape = MaterialTheme.shapes.medium,
@@ -322,12 +331,18 @@ fun AddSpendingScreen(
             ) {
                 val selected = categories.firstOrNull { it.id == state.categoryId }
                 Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (selected != null) {
-                        CategoryIconBadge(icon = selected.icon, color = selected.color, size = 42.dp)
+                        CategoryIconBadge(icon = selected.icon, color = selected.color, size = 28.dp)
+                    } else {
+                        com.spendr.app.kt.ui.components.MciIcon(
+                            "shape-outline",
+                            22.dp,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     Text(
                         text = selected?.name ?: "Select category",
@@ -344,6 +359,27 @@ fun AddSpendingScreen(
                 }
             }
 
+            Column {
+                Text(
+                    "Note",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                )
+                TextField(
+                    value = state.note,
+                    onValueChange = viewModel::setNote,
+                    placeholder = { Text("e.g., Premium coffee") },
+                    colors = INPUT_COLORS,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(noteFocus),
+                    singleLine = true,
+                )
+            }
+
             // Note suggestions (RN NoteSuggestions style)
             if (suggestions.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -357,30 +393,26 @@ fun AddSpendingScreen(
                 }
             }
 
-            TextField(
-                value = state.note,
-                onValueChange = viewModel::setNote,
-                label = { Text("Note") },
-                colors = INPUT_COLORS,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(noteFocus),
-                singleLine = true,
-            )
-
-            TextField(
-                value = state.merchant,
-                onValueChange = viewModel::setMerchant,
-                label = { Text("Merchant (optional)") },
-                placeholder = { Text("e.g., Indomaret") },
-                colors = INPUT_COLORS,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(merchantFocus),
-                singleLine = true,
-            )
+            Column {
+                Text(
+                    "Merchant (optional)",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                )
+                TextField(
+                    value = state.merchant,
+                    onValueChange = viewModel::setMerchant,
+                    placeholder = { Text("e.g., Indomaret") },
+                    colors = INPUT_COLORS,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(merchantFocus),
+                    singleLine = true,
+                )
+            }
 
 
             if (state.amountError) {
