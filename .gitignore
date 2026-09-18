@@ -14,3 +14,7 @@ keystore.properties
 reference/og/*.apk
 reference/og/*.zip
 /_apk/
+
+# Real spending data captured in screenshots — never publish
+docs/screenshots/og/
+docs/screenshots/spendr-kt/
