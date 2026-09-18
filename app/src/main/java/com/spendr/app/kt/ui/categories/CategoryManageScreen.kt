@@ -7,9 +7,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -19,29 +22,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,7 +52,15 @@ import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.AppContainer
 import com.spendr.app.kt.data.db.entity.CategoryEntity
 import com.spendr.app.kt.data.repo.CATEGORY_PALETTE
+import com.spendr.app.kt.ui.components.BouncyButton
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.BouncySurface
+import com.spendr.app.kt.ui.components.BouncyTextButton
+import com.spendr.app.kt.ui.components.BouncyTonalButton
 import com.spendr.app.kt.ui.components.CategoryIconBadge
+import com.spendr.app.kt.ui.components.MciIcon
+import com.spendr.app.kt.ui.components.ThemedTextField
+import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.theme.SpendrTheme
 import kotlinx.coroutines.launch
 
@@ -69,17 +72,10 @@ private val ICON_CHOICES = listOf(
     "wrench", "phone", "tshirt-crew-outline", "baby-carriage", "dots-horizontal-circle-outline",
 )
 
-private val INPUT_COLORS @Composable get() = TextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-    unfocusedIndicatorColor = Color.Transparent,
-)
-
 /** Category CRUD with reorder + delete-with-reassignment, ported from RN `CategoryManageScreen`. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoryManageScreen(container: AppContainer) {
+fun CategoryManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val categories by container.categories.observeCategories()
         .collectAsState(initial = emptyList())
@@ -87,50 +83,66 @@ fun CategoryManageScreen(container: AppContainer) {
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<CategoryEntity?>(null) }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
-        Column(Modifier.padding(innerPadding)) {
-            TopAppBar(title = { Text("Manage Categories", fontWeight = FontWeight.Bold) })
-            Column(
-                Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Manage Categories", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    BouncyIconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        Column(
+            Modifier
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BouncyTonalButton(
+                onClick = { creating = true },
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Button(
-                    onClick = { creating = true },
-                    modifier = Modifier.fillMaxWidth(),
+                MciIcon("plus", 18.dp, MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Add category", Modifier.padding(start = 8.dp))
+            }
+            if (categories.isEmpty()) {
+                Text(
+                    "No categories yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            categories.forEachIndexed { index, category ->
+                Card(
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    ),
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Text("Add category", Modifier.padding(start = 8.dp))
-                }
-                if (categories.isEmpty()) {
-                    Text(
-                        "No categories yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                categories.forEachIndexed { index, category ->
-                    Card(
-                        shape = MaterialTheme.shapes.large,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ),
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        CategoryIconBadge(icon = category.icon, color = category.color, size = 42.dp)
+                        Text(
+                            category.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        // RN styles.actions: trailing icon cluster with 2dp gap
                         Row(
-                            Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            CategoryIconBadge(icon = category.icon, color = category.color, size = 38.dp)
-                            Text(
-                                category.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(
+                            BouncyIconButton(
                                 onClick = {
                                     val ids = categories.map { it.id }.toMutableList()
                                     ids.removeAt(index)
@@ -138,10 +150,19 @@ fun CategoryManageScreen(container: AppContainer) {
                                     scope.launch { container.categories.reorderCategories(ids) }
                                 },
                                 enabled = index > 0,
+                                modifier = Modifier.size(36.dp),
                             ) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move ${category.name} up")
+                                MciIcon(
+                                    "chevron-up",
+                                    24.dp,
+                                    if (index > 0) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                    },
+                                )
                             }
-                            IconButton(
+                            BouncyIconButton(
                                 onClick = {
                                     val ids = categories.map { it.id }.toMutableList()
                                     ids.removeAt(index)
@@ -149,22 +170,29 @@ fun CategoryManageScreen(container: AppContainer) {
                                     scope.launch { container.categories.reorderCategories(ids) }
                                 },
                                 enabled = index < categories.size - 1,
+                                modifier = Modifier.size(36.dp),
                             ) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move ${category.name} down")
-                            }
-                            IconButton(onClick = { editing = category }) {
-                                Icon(
-                                    Icons.Outlined.Edit,
-                                    contentDescription = "Edit ${category.name}",
-                                    tint = MaterialTheme.colorScheme.primary,
+                                MciIcon(
+                                    "chevron-down",
+                                    24.dp,
+                                    if (index < categories.size - 1) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                    },
                                 )
                             }
-                            IconButton(onClick = { deleting = category }) {
-                                Icon(
-                                    Icons.Outlined.Delete,
-                                    contentDescription = "Delete ${category.name}",
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
+                            BouncyIconButton(
+                                onClick = { editing = category },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                MciIcon("pencil-outline", 24.dp, MaterialTheme.colorScheme.primary)
+                            }
+                            BouncyIconButton(
+                                onClick = { deleting = category },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                MciIcon("trash-can-outline", 24.dp, MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -205,7 +233,7 @@ fun CategoryManageScreen(container: AppContainer) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryEditSheet(
     existing: CategoryEntity?,
@@ -217,91 +245,132 @@ private fun CategoryEditSheet(
     var color by remember { mutableStateOf(existing?.color ?: CATEGORY_PALETTE.first()) }
     var showNameError by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                if (existing == null) "New category" else "Edit category",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            TextField(
-                value = name,
-                onValueChange = { name = it; showNameError = false },
-                label = { Text("Name") },
-                placeholder = { Text("e.g., Pets") },
-                colors = INPUT_COLORS,
-                shape = MaterialTheme.shapes.medium,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (showNameError) {
-                Text(
-                    "Name is required",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            Text("Icon", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(48.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().height(((ICON_CHOICES.size / 5 + 1) * 56).dp),
+    // Open fully expanded: name, icons, colors, and Save are all on screen at
+    // once (the inner column still scrolls on short screens, Save stays pinned)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        // Scrollable content + pinned Save: the button stays visible even when
+        // the name field, icon grid, and palette overflow the sheet height.
+        Column(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(ICON_CHOICES) { iconName ->
-                    val selected = iconName == icon
-                    Surface(
-                        onClick = { icon = iconName },
-                        shape = MaterialTheme.shapes.medium,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHighest
-                        },
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            CategoryIconBadge(icon = iconName, color = color, size = 36.dp)
+                Text(
+                    if (existing == null) "New category" else "Edit category",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                ThemedTextField(
+                    value = name,
+                    onValueChange = { name = it; showNameError = false },
+                    label = "Name",
+                    placeholder = "e.g., Pets",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (showNameError) {
+                    Text(
+                        "Name is required",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                // RN ChoiceTiles labels: labelLarge 600, textSecondary
+                Text(
+                    "Icon",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+                // RN SelectableTile 48dp rounded: surfaceContainerHigh + outlineVariant
+                // border idle, primaryContainer + primary border selected, plain glyph
+                // 5 fixed columns: the height formula below must match the column count
+                val iconRows = (ICON_CHOICES.size + 4) / 5
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(5),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((iconRows * 56 - 8).dp),
+                ) {
+                    items(ICON_CHOICES) { iconName ->
+                        val selected = iconName == icon
+                        BouncySurface(
+                            onClick = { icon = iconName },
+                            shape = MaterialTheme.shapes.medium,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                            border = BorderStroke(
+                                if (selected) 2.dp else 1.dp,
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                            ),
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                MciIcon(
+                                    iconName,
+                                    22.dp,
+                                    if (selected) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                )
+                            }
                         }
                     }
                 }
-            }
-            Text("Color", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            COLUMN_PALETTE.chunked(9).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { hex ->
+                Text(
+                    "Color",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+                // RN swatch SelectableTile: 36dp circle, 3dp border, check when picked
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    COLUMN_PALETTE.forEach { hex ->
                         val selected = hex == color
-                        Box(
-                            Modifier
-                                .size(36.dp)
-                                .background(
-                                    com.spendr.app.kt.ui.components.categoryColor(hex),
-                                    CircleShape,
-                                )
-                                .border(
-                                    width = if (selected) 3.dp else 0.dp,
-                                    color = if (selected) {
-                                        MaterialTheme.colorScheme.onSurface
-                                    } else {
-                                        Color.Transparent
-                                    },
-                                    shape = CircleShape,
-                                )
-                                .clickable { color = hex },
-                            contentAlignment = Alignment.Center,
+                        BouncySurface(
+                            onClick = { color = hex },
+                            shape = CircleShape,
+                            color = com.spendr.app.kt.ui.components.categoryColor(hex),
+                            border = BorderStroke(
+                                3.dp,
+                                if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                            ),
+                            modifier = Modifier.size(36.dp),
                         ) {
-                            if (selected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                            Box(contentAlignment = Alignment.Center) {
+                                if (selected) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onError,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-            Button(
+            // Pinned below the scroll area: always on screen
+            BouncyButton(
                 onClick = {
                     if (name.trim().isEmpty()) {
                         showNameError = true
@@ -310,8 +379,12 @@ private fun CategoryEditSheet(
                     }
                 },
                 enabled = true,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .padding(horizontal = 16.dp)
+                    .navigationBarsPadding()
                     .padding(bottom = 24.dp),
             ) {
                 Icon(Icons.Default.Check, contentDescription = null)
@@ -347,11 +420,17 @@ private fun DeleteCategoryFlow(
                         Text("Create another Category first so these items have somewhere to move.")
                     } else {
                         categories.filter { it.id != target.id }.forEach { candidate ->
+                            val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { replacementId = candidate.id },
+                                    .pressScale(source)
+                                    .clickable(
+                                        interactionSource = source,
+                                        indication = androidx.compose.material3.ripple(),
+                                        onClick = { replacementId = candidate.id },
+                                    ),
                             ) {
                                 RadioButton(
                                     selected = replacementId == candidate.id,
@@ -369,12 +448,12 @@ private fun DeleteCategoryFlow(
                 }
             },
             confirmButton = {
-                TextButton(
+                BouncyTextButton(
                     enabled = replacementId != null,
                     onClick = { stage = Stage.CONFIRM },
                 ) { Text("Continue") }
             },
-            dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
+            dismissButton = { BouncyTextButton(onClick = onDone) { Text("Cancel") } },
         )
 
         Stage.CONFIRM -> {
@@ -391,7 +470,7 @@ private fun DeleteCategoryFlow(
                     )
                 },
                 confirmButton = {
-                    TextButton(
+                    BouncyTextButton(
                         onClick = {
                             scope.launch {
                                 container.categories.replaceCategoryAndDelete(target.id, replacementId!!)
@@ -400,7 +479,7 @@ private fun DeleteCategoryFlow(
                         },
                     ) { Text("Move and delete") }
                 },
-                dismissButton = { TextButton(onClick = { stage = Stage.PICK }) { Text("Go back") } },
+                dismissButton = { BouncyTextButton(onClick = { stage = Stage.PICK }) { Text("Go back") } },
             )
         }
     }

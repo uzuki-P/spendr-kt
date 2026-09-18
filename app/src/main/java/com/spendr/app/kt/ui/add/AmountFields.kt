@@ -41,7 +41,7 @@ import com.spendr.app.kt.ui.theme.SpendrTheme
 /**
  * The three interdependent amount fields, ported from RN `AmountFields.tsx`:
  * container surfaceContainerHighest radius 20, 1.5 dp active borders, Rp/%
- * slider toggle, success-green "Save Rp" block on the pay row.
+ * slider toggle, success-green "Save" block on the pay row.
  */
 @Composable
 fun AmountFields(
@@ -202,7 +202,7 @@ private fun FieldBox(
                 if (showSavings && savedAmount > 0) {
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            "Save Rp",
+                            "Save",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = SpendrTheme.colors.success,

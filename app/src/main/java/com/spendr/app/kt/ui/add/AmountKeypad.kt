@@ -1,7 +1,6 @@
 package com.spendr.app.kt.ui.add
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.LocalVibrate
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.keypadPress
-import com.spendr.app.kt.ui.theme.SpendrTheme
 
 private val KEYPAD_ROWS = listOf(
     listOf("1", "2", "3"),
@@ -37,6 +35,10 @@ private val KEYPAD_ROWS = listOf(
  * Digits-only keypad, ported from RN `AmountKeypad`: 48 dp surfaceVariant
  * digit keys, secondaryContainer backspace, action row [Clear | Close |
  * Backspace], primary "Next" in the grid's bottom-right. Haptic per press.
+ *
+ * With `onNext = null` (sheets): the backspace stays in the grid's
+ * bottom-right and the action row reads [Clear | Close] — the RN
+ * quick-add sheet layout.
  */
 @Composable
 fun AmountKeypad(
@@ -45,7 +47,7 @@ fun AmountKeypad(
     onBackspace: () -> Unit,
     onClear: () -> Unit,
     onClose: () -> Unit,
-    onNext: () -> Unit,
+    onNext: (() -> Unit)? = null,
 ) {
     val vibrate = LocalVibrate.current
     fun press(action: () -> Unit) {
@@ -54,12 +56,11 @@ fun AmountKeypad(
     }
 
     Column(
-        // RN keypadFooter + keypadSection: surface bg, hairline top border,
-        // 16/12 padding, bottom safe-area inset for the nav bar
+        // RN keypadFooter + keypadSection: surface bg, 16/12 padding,
+        // bottom safe-area inset for the nav bar
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, SpendrTheme.colors.border),
+            .background(MaterialTheme.colorScheme.surface),
     ) {
         Column(
             Modifier
@@ -67,7 +68,8 @@ fun AmountKeypad(
                 .windowInsetsPadding(WindowInsets.navigationBars),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-        // Action row: Clear | Close | Backspace
+        // Action row: Clear | Close | (Backspace, only when a Next action
+        // occupies the grid's bottom-right)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -88,14 +90,18 @@ fun AmountKeypad(
                 modifier = Modifier.weight(1f),
                 onClick = { press(onClose) },
             )
-            KeypadActionButton(
-                glyph = "backspace-outline",
-                label = "",
-                container = MaterialTheme.colorScheme.secondaryContainer,
-                content = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.weight(1f),
-                onClick = { press(onBackspace) },
-            )
+            if (onNext != null) {
+                KeypadActionButton(
+                    glyph = "backspace-outline",
+                    label = "",
+                    container = MaterialTheme.colorScheme.secondaryContainer,
+                    content = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.weight(1f),
+                    onClick = { press(onBackspace) },
+                )
+            } else {
+                Box(Modifier.weight(1f))
+            }
         }
         for ((rowIndex, row) in KEYPAD_ROWS.withIndex()) {
             Row(
@@ -111,35 +117,47 @@ fun AmountKeypad(
                     )
                 }
                 if (rowIndex == KEYPAD_ROWS.size - 1) {
-                    // Bottom-right action: "Next" (primary tone). The keypadPress
-                    // modifier owns the click so the press fires exactly once.
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                            .keypadPress { press(onNext) },
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            // RN KeypadActionButton: icon first, then the label ("→ Next")
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                MciIcon(
-                                    "arrow-right",
-                                    18.dp,
-                                    MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                                Text(
-                                    "Next",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
+                    if (onNext != null) {
+                        // Bottom-right action: "Next" (primary tone). The keypadPress
+                        // modifier owns the click so the press fires exactly once.
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .keypadPress { press(onNext) },
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                // RN KeypadActionButton: icon first, then the label ("→ Next")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    MciIcon(
+                                        "arrow-right",
+                                        18.dp,
+                                        MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                    Text(
+                                        "Next",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
                             }
                         }
+                    } else {
+                        // Sheet variant: backspace lives in the grid's bottom-right
+                        KeypadActionButton(
+                            glyph = "backspace-outline",
+                            label = "",
+                            container = MaterialTheme.colorScheme.secondaryContainer,
+                            content = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.weight(1f),
+                            onClick = { press(onBackspace) },
+                        )
                     }
                 }
             }

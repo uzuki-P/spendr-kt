@@ -4,17 +4,21 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -34,7 +38,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.AppContainer
-import com.spendr.app.kt.data.backup.BackupException
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.BouncyTextButton
+import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.data.backup.restoreBackup
 import com.spendr.app.kt.data.csv.CsvFormat
 import com.spendr.app.kt.data.settings.BackupFrequency
@@ -52,7 +58,7 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BackupRestoreScreen(container: AppContainer) {
+fun BackupRestoreScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settings by container.settings.settings.collectAsState(initial = Settings())
@@ -60,14 +66,22 @@ fun BackupRestoreScreen(container: AppContainer) {
     var confirmExport by remember { mutableStateOf(false) }
     var confirmImport by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
+    var confirmBackupNow by remember { mutableStateOf(false) }
     var frequencyOpen by remember { mutableStateOf(false) }
     var rotationOpen by remember { mutableStateOf(false) }
     var pendingExportFormat by remember { mutableStateOf(CsvFormat.SPENDR) }
+    var pendingImportFormat by remember { mutableStateOf(CsvFormat.SPENDR) }
+    var pendingExportCsv by remember { mutableStateOf<String?>(null) }
+    var pendingExportCount by remember { mutableStateOf(0) }
     var pendingFrequency by remember { mutableStateOf<BackupFrequency?>(null) }
+    var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     fun toast(message: String) {
         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
     }
+
+    fun formatLabel(format: CsvFormat): String =
+        if (format == CsvFormat.SPENDR) "Spendr" else "Money Lover"
 
     val folderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
@@ -109,15 +123,28 @@ fun BackupRestoreScreen(container: AppContainer) {
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv"),
     ) { uri ->
-        if (uri != null) {
+        val csv = pendingExportCsv
+        if (uri != null && csv != null) {
             scope.launch {
-                val format = pendingExportFormat
-                val result = container.importExport.exportTransactionsToCsv(format)
-                withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri)?.use { it.write(result.csv.toByteArray()) }
+                try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
+                    }
+                    val count = pendingExportCount
+                    toast(
+                        "Exported $count transaction" +
+                            if (count == 1) " as ${formatLabel(pendingExportFormat)} CSV." else "s as ${formatLabel(pendingExportFormat)} CSV.",
+                    )
+                } catch (e: Exception) {
+                    toast("Export failed: ${e.message}")
+                } finally {
+                    pendingExportCsv = null
+                    pendingExportCount = 0
                 }
-                toast("Exported ${result.count} transaction(s).")
             }
+        } else {
+            pendingExportCsv = null
+            pendingExportCount = 0
         }
     }
     val importLauncher = rememberLauncherForActivityResult(
@@ -125,6 +152,7 @@ fun BackupRestoreScreen(container: AppContainer) {
     ) { uri ->
         if (uri != null) {
             scope.launch {
+                val format = pendingImportFormat
                 val content = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
                 }
@@ -132,16 +160,15 @@ fun BackupRestoreScreen(container: AppContainer) {
                     toast("Could not read the selected file.")
                     return@launch
                 }
-                val format = if (content.trimStart('\uFEFF').startsWith("Spendr Version", ignoreCase = true)) {
-                    CsvFormat.SPENDR
-                } else {
-                    CsvFormat.MONEY_LOVER
-                }
                 try {
                     val result = container.importExport.importCsv(content, format)
                     toast(
-                        "Imported ${result.added}, skipped ${result.skipped}, " +
-                            "${result.categoriesCreated} new category/categories.",
+                        when {
+                            result.added > 0 ->
+                                "Imported ${result.added} transaction" +
+                                    if (result.added == 1) "; ${result.skipped} skipped." else "s; ${result.skipped} skipped."
+                            else -> "No new transactions were imported."
+                        },
                     )
                 } catch (e: Exception) {
                     toast("Import failed: ${e.message}")
@@ -152,24 +179,10 @@ fun BackupRestoreScreen(container: AppContainer) {
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
+        // RN chooseRestore: pick first, then confirm over the pending URI
         if (uri != null) {
-            scope.launch {
-                try {
-                    val bytes = withContext(Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    }
-                    if (bytes == null) {
-                        toast("Could not read the selected file.")
-                        return@launch
-                    }
-                    val count = restoreBackup(container.database, bytes)
-                    toast("Restored $count transaction(s).")
-                } catch (e: BackupException) {
-                    toast("Restore failed: ${e.message}")
-                } catch (e: Exception) {
-                    toast("Restore failed: ${e.message}")
-                }
-            }
+            pendingRestoreUri = uri
+            confirmRestore = true
         }
     }
 
@@ -192,10 +205,40 @@ fun BackupRestoreScreen(container: AppContainer) {
         }
     }
 
+    /** RN restore(): reads the pending URI, replays the archive, reports the count. */
+    fun restoreFromPending() {
+        val uri = pendingRestoreUri ?: return
+        confirmRestore = false
+        scope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }
+                if (bytes == null) {
+                    toast("Could not read the selected file.")
+                    return@launch
+                }
+                val count = restoreBackup(container.database, bytes)
+                toast("Restored $count transaction" + if (count == 1) "." else "s.")
+            } catch (e: Exception) {
+                toast("Restore failed: ${e.message}")
+            } finally {
+                pendingRestoreUri = null
+            }
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(title = { Text("Backup & restore", fontWeight = FontWeight.Bold) })
+            TopAppBar(
+                title = { Text("Backup & restore", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    BouncyIconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         Column(
@@ -236,14 +279,14 @@ fun BackupRestoreScreen(container: AppContainer) {
                     subtitle = settings.lastBackupAt?.let {
                         "Last backup " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(it))
                     } ?: "Create a complete Spendr archive",
-                    onClick = { backupNow() },
+                    onClick = { confirmBackupNow = true },
                 )
                 RowDivider()
                 SettingsRow(
                     icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("database-import-outline", "#37474F", 38.dp) },
                     title = "Restore backup",
                     subtitle = "Replace local data from a Spendr ZIP archive",
-                    onClick = { confirmRestore = true },
+                    onClick = { restoreLauncher.launch(arrayOf("application/zip", "*/*")) },
                 )
             }
 
@@ -311,13 +354,41 @@ fun BackupRestoreScreen(container: AppContainer) {
             onCancel = { confirmExport = false },
             onSpendr = {
                 confirmExport = false
-                pendingExportFormat = CsvFormat.SPENDR
-                exportLauncher.launch(suggestedCsvName("spendr"))
+                // RN exportCsv: generate first and refuse empty exports before
+                // any file interaction
+                scope.launch {
+                    try {
+                        val result = container.importExport.exportTransactionsToCsv(CsvFormat.SPENDR)
+                        if (result.count == 0) {
+                            toast("Export failed: There are no transactions to export.")
+                        } else {
+                            pendingExportFormat = CsvFormat.SPENDR
+                            pendingExportCsv = result.csv
+                            pendingExportCount = result.count
+                            exportLauncher.launch(suggestedCsvName("spendr_backup"))
+                        }
+                    } catch (e: Exception) {
+                        toast("Export failed: ${e.message}")
+                    }
+                }
             },
             onMoneyLover = {
                 confirmExport = false
-                pendingExportFormat = CsvFormat.MONEY_LOVER
-                exportLauncher.launch(suggestedCsvName("spendr_money_lover"))
+                scope.launch {
+                    try {
+                        val result = container.importExport.exportTransactionsToCsv(CsvFormat.MONEY_LOVER)
+                        if (result.count == 0) {
+                            toast("Export failed: There are no transactions to export.")
+                        } else {
+                            pendingExportFormat = CsvFormat.MONEY_LOVER
+                            pendingExportCsv = result.csv
+                            pendingExportCount = result.count
+                            exportLauncher.launch(suggestedCsvName("spendr_money_lover"))
+                        }
+                    } catch (e: Exception) {
+                        toast("Export failed: ${e.message}")
+                    }
+                }
             },
         )
     }
@@ -328,28 +399,49 @@ fun BackupRestoreScreen(container: AppContainer) {
             onCancel = { confirmImport = false },
             onSpendr = {
                 confirmImport = false
+                pendingImportFormat = CsvFormat.SPENDR
                 importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*"))
             },
             onMoneyLover = {
                 confirmImport = false
+                pendingImportFormat = CsvFormat.MONEY_LOVER
                 importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*"))
             },
         )
     }
+    if (confirmBackupNow) {
+        AlertDialog(
+            onDismissRequest = { confirmBackupNow = false },
+            title = { Text("Back up now?") },
+            text = { Text("Creates a complete Spendr archive in the selected backup folder.") },
+            confirmButton = {
+                BouncyTextButton(onClick = {
+                    confirmBackupNow = false
+                    backupNow()
+                }) { Text("Back up") }
+            },
+            dismissButton = { BouncyTextButton(onClick = { confirmBackupNow = false }) { Text("Cancel") } },
+        )
+    }
     if (confirmRestore) {
         AlertDialog(
-            onDismissRequest = { confirmRestore = false },
+            onDismissRequest = {
+                confirmRestore = false
+                pendingRestoreUri = null
+            },
             title = { Text("Restore backup?") },
             text = {
                 Text("This replaces all local Transactions, Categories, and QuickAdd shortcuts. This cannot be undone.")
             },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmRestore = false
-                    restoreLauncher.launch(arrayOf("application/zip", "*/*"))
-                }) { Text("Restore") }
+                BouncyTextButton(onClick = { restoreFromPending() }) { Text("Restore") }
             },
-            dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text("Cancel") } },
+            dismissButton = {
+                BouncyTextButton(onClick = {
+                    confirmRestore = false
+                    pendingRestoreUri = null
+                }) { Text("Cancel") }
+            },
         )
     }
 }
@@ -408,7 +500,20 @@ private fun SettingsRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onClick != null) {
+                    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    Modifier
+                        .pressScale(source)
+                        .clickable(
+                            interactionSource = source,
+                            indication = androidx.compose.material3.ripple(),
+                            onClick = onClick,
+                        )
+                } else {
+                    Modifier
+                },
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -461,7 +566,7 @@ private fun <T> RadioDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelect(value) },
+                            .pressScale(onClick = { onSelect(value) }),
                     ) {
                         RadioButton(selected = value == selected, onClick = { onSelect(value) })
                         Text(label)
@@ -470,7 +575,7 @@ private fun <T> RadioDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { BouncyTextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
@@ -488,16 +593,18 @@ private fun FormatDialog(
         text = { Text(body) },
         confirmButton = {
             Row {
-                TextButton(onClick = onCancel) { Text("Cancel") }
-                TextButton(onClick = onSpendr) { Text("Spendr") }
-                TextButton(onClick = onMoneyLover) { Text("Money Lover") }
+                BouncyTextButton(onClick = onCancel) { Text("Cancel") }
+                BouncyTextButton(onClick = onSpendr) { Text("Spendr") }
+                BouncyTextButton(onClick = onMoneyLover) { Text("Money Lover") }
             }
         },
     )
 }
 
 private fun suggestedCsvName(prefix: String): String {
+    // RN uses the UTC ISO date (toISOString().slice(0, 10))
     val stamp = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
-        .format(java.time.LocalDate.now())
+        .withZone(java.time.ZoneOffset.UTC)
+        .format(java.time.Instant.now())
     return "${prefix}_$stamp.csv"
 }

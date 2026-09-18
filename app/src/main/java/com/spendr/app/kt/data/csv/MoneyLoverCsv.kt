@@ -10,11 +10,13 @@ const val EXPORT_CURRENCY = "IDR"
 
 data class MoneyLoverRecord(
     val note: String,
-    val amount: Long,
+    /** Null when the cell is not a finite number (RN NaN). */
+    val amount: Long?,
     val category: String,
     val account: String,
     val currency: String,
-    val date: Long,
+    /** Null when the date cell does not parse (RN raw string). */
+    val date: Long?,
 )
 
 object MoneyLoverCsv {
@@ -57,11 +59,11 @@ object MoneyLoverCsv {
                     listOf(
                         (index + 1).toString(),
                         r.note,
-                        r.amount.toString(),
+                        (r.amount ?: 0L).toString(),
                         r.category,
                         r.account,
                         r.currency,
-                        formatMoneyLoverDate(r.date),
+                        formatMoneyLoverDate(r.date ?: 0L),
                         "",
                         "False",
                     ),
@@ -99,17 +101,18 @@ object MoneyLoverCsv {
             dateIdx = firstOf(headerRow, "Date").let { if (it >= 0) it else 6 }
         }
 
-        return rows.drop(if (firstRowIsData) 0 else 1).mapNotNull { row ->
-            val amountRaw = CsvCodec.numericCandidates(CsvCodec.cell(row, amountIdx))?.toDoubleOrNull()
-                ?: return@mapNotNull null
-            val date = parseMoneyLoverDate(CsvCodec.cell(row, dateIdx)) ?: return@mapNotNull null
+        // RN keeps rows with NaN amounts / unparseable dates so the import
+        // loop can count them as skipped; null fields mirror NaN here.
+        return rows.drop(if (firstRowIsData) 0 else 1).map { row ->
+            val amountRaw = CsvCodec.numericCandidates(CsvCodec.cell(row, amountIdx))
+                ?.toDoubleOrNull()?.takeIf { it.isFinite() }?.toLong()
             MoneyLoverRecord(
                 note = CsvCodec.cell(row, noteIdx).trim(),
-                amount = amountRaw.toLong(),
+                amount = amountRaw,
                 category = CsvCodec.cell(row, categoryIdx).trim(),
                 account = CsvCodec.cell(row, accountIdx).trim(),
                 currency = CsvCodec.cell(row, currencyIdx).trim(),
-                date = date,
+                date = parseMoneyLoverDate(CsvCodec.cell(row, dateIdx)),
             )
         }
     }

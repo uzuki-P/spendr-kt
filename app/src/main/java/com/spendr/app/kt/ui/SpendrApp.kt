@@ -1,5 +1,13 @@
 package com.spendr.app.kt.ui
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +30,8 @@ import com.spendr.app.kt.ui.home.HomeViewModel
 import com.spendr.app.kt.ui.quickadd.QuickAddManageScreen
 import com.spendr.app.kt.ui.reports.ReportsScreen
 import com.spendr.app.kt.ui.reports.ReportsViewModel
+import com.spendr.app.kt.ui.search.TransactionSearchScreen
+import com.spendr.app.kt.ui.search.TransactionSearchViewModel
 import com.spendr.app.kt.ui.settings.BackupRestoreScreen
 import com.spendr.app.kt.ui.settings.DebugScreen
 import com.spendr.app.kt.ui.settings.SettingsScreen
@@ -33,6 +43,7 @@ import com.spendr.app.kt.ui.transactions.TransactionsViewModel
 object Routes {
     const val HOME = "home"
     const val TRANSACTIONS = "transactions?categoryId={categoryId}"
+    const val SEARCH = "search"
     const val REPORTS = "reports"
     const val ADD = "add?transactionId={transactionId}&quickAddId={quickAddId}&duplicateFromId={duplicateFromId}"
     const val ADD_PATTERN = "spendrkt://add"
@@ -59,8 +70,20 @@ object Routes {
     fun detail(id: Long) = "transaction/$id"
 }
 
- 
-
+/**
+ * OG native-stack motion, ported from React Navigation's `fade_from_bottom` /
+ * `fade_to_bottom` (the Android Nougat activity open/close anims that
+ * react-native-screens replays; see its res/anim XMLs):
+ *
+ * - push in:  alpha 0→1 over 210ms + rise from 8% over 350ms, both
+ *   decelerate-quint
+ * - push out: the covered screen holds still and fully opaque for 350ms
+ * - pop out:  sink to 8% over 250ms accelerate-quint + alpha 1→0 over 150ms
+ *   after a 100ms delay, linear
+ * - pop in:   the revealed screen appears instantly and holds still
+ */
+private val DecelerateQuint = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+private val AccelerateQuint = CubicBezierEasing(0.64f, 0f, 0.78f, 0f)
 
 @Composable
 fun SpendrApp(container: AppContainer) {
@@ -80,16 +103,24 @@ fun SpendrApp(container: AppContainer) {
     NavHost(
         navController = navController,
         startDestination = Routes.HOME,
+        // Fade-and-rise push / fade-and-sink pop, matching the OG's native
+        // stack (see the animation docs above).
         enterTransition = {
-            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(250)) +
-                androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(250)) { it / 8 }
+            fadeIn(tween(210, easing = DecelerateQuint)) +
+                slideInVertically(tween(350, easing = DecelerateQuint)) { it * 8 / 100 }
         },
-        exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
+        exitTransition = {
+            // Hold the covered screen still and opaque while the new one
+            // fades in above it (the native "no animation" pair).
+            fadeOut(snap(delayMillis = 350))
+        },
         popEnterTransition = {
-            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(250)) +
-                androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(250)) { -it / 8 }
+            fadeIn(snap())
         },
-        popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
+        popExitTransition = {
+            fadeOut(tween(150, delayMillis = 100, easing = LinearEasing)) +
+                slideOutVertically(tween(250, easing = AccelerateQuint)) { it * 8 / 100 }
+        },
     ) {
             composable(Routes.HOME) {
                 val homeViewModel: HomeViewModel = viewModel(
@@ -108,7 +139,7 @@ fun SpendrApp(container: AppContainer) {
                         navController.navigate(Routes.TRANSACTIONS) { launchSingleTop = true }
                     },
                     onOpenSearch = {
-                        navController.navigate(Routes.TRANSACTIONS) { launchSingleTop = true }
+                        navController.navigate(Routes.SEARCH) { launchSingleTop = true }
                     },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenReports = { navController.navigate(Routes.REPORTS) },
@@ -139,6 +170,20 @@ fun SpendrApp(container: AppContainer) {
                     onOpenReports = { navController.navigate(Routes.REPORTS) },
                     onDuplicate = transactionsViewModel::duplicate,
                     prefilteredCategoryId = entry.arguments?.getString("categoryId")?.toLongOrNull(),
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.SEARCH) {
+                val searchViewModel: TransactionSearchViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer {
+                            TransactionSearchViewModel(container.transactions, container.categories)
+                        }
+                    },
+                )
+                TransactionSearchScreen(
+                    viewModel = searchViewModel,
+                    onOpenDetail = { navController.navigate(Routes.detail(it)) },
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -202,6 +247,7 @@ fun SpendrApp(container: AppContainer) {
                     viewModel = addViewModel,
                     onDone = { navController.popBackStack() },
                     onOpenManageCategories = { navController.navigate(Routes.CATEGORIES) },
+                    onOpenManageQuickAdd = { navController.navigate(Routes.QUICK_ADD_MANAGE) },
                 )
             }
             composable(
@@ -230,6 +276,7 @@ fun SpendrApp(container: AppContainer) {
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     container = container,
+                    onBack = { navController.popBackStack() },
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
                     onOpenCategories = { navController.navigate(Routes.CATEGORIES) },
                     onOpenQuickAdd = { navController.navigate(Routes.QUICK_ADD_MANAGE) },
@@ -237,16 +284,28 @@ fun SpendrApp(container: AppContainer) {
                 )
             }
             composable(Routes.BACKUP) {
-                BackupRestoreScreen(container = container)
+                BackupRestoreScreen(
+                    container = container,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.CATEGORIES) {
-                CategoryManageScreen(container = container)
+                CategoryManageScreen(
+                    container = container,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.QUICK_ADD_MANAGE) {
-                QuickAddManageScreen(container = container)
+                QuickAddManageScreen(
+                    container = container,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(Routes.DEBUG) {
-                DebugScreen(container = container)
+                DebugScreen(
+                    container = container,
+                    onBack = { navController.popBackStack() },
+                )
             }
         }
 }

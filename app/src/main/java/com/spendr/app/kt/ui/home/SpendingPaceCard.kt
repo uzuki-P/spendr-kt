@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.spendr.app.kt.LocalVibrate
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.ui.components.MciIcon
+import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.home.HomeViewModel.PaceData
 import com.spendr.app.kt.ui.theme.SpendrTheme
 import kotlin.math.ceil
@@ -153,7 +154,7 @@ fun SpendingPaceCard(
             }
             Box(
                 modifier = Modifier
-                    .clickable(onClick = onOpenReport)
+                    .pressScale(onClick = onOpenReport)
                     .padding(8.dp),
             ) {
                 Row(

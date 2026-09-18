@@ -1,12 +1,5 @@
 package com.spendr.app.kt.ui.reports
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -35,9 +28,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,12 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.LocalVibrate
@@ -68,14 +56,18 @@ import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.formatRupiahCompact
 import com.spendr.app.kt.domain.formatDayShort
 import com.spendr.app.kt.domain.localDate
-import com.spendr.app.kt.domain.monthCursor
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.BouncySurface
 import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.MonthPager
+import com.spendr.app.kt.ui.components.MonthYearPickerSheet
 import com.spendr.app.kt.ui.components.SectionHeader
+import com.spendr.app.kt.ui.components.monthPillLabel
+import com.spendr.app.kt.ui.components.pressScale
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.spendr.app.kt.ui.theme.SpendrTheme
 import com.spendr.app.kt.ui.components.monthWindow
-import java.time.YearMonth
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
@@ -93,7 +85,7 @@ fun ReportsScreen(
 ) {
     val report by viewModel.report.collectAsState()
     val cursor by viewModel.cursor.collectAsState()
-    val months = remember { monthWindow(System.currentTimeMillis()) }
+    val months = remember(cursor) { monthWindow(System.currentTimeMillis(), include = cursor) }
     var showMonthPicker by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -102,12 +94,12 @@ fun ReportsScreen(
             TopAppBar(
                 title = { Text("Reports", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    BouncyIconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    Surface(
+                    BouncySurface(
                         onClick = { showMonthPicker = true },
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -180,7 +172,7 @@ fun ReportsScreen(
                                     )
                                 }
                                 // RN heroButton: icon + "See all", onPrimaryContainer
-                                Surface(
+                                BouncySurface(
                                     onClick = { onSeeAll(cursor) },
                                     shape = MaterialTheme.shapes.small,
                                     color = Color.Transparent,
@@ -288,7 +280,7 @@ fun ReportsScreen(
                                             .background(MaterialTheme.colorScheme.background),
                                     )
                                 }
-                                Surface(
+                                BouncySurface(
                                     onClick = { onOpenCategory(category.categoryId) },
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     shape = androidx.compose.ui.graphics.RectangleShape,
@@ -409,7 +401,6 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
     val axisWidthDp = 64.dp
     val plotHeightDp = 132.dp
     val density = LocalDensity.current
-    val haptics = LocalHapticFeedback.current
     val vibrate = LocalVibrate.current
 
     val primaryBarColor = MaterialTheme.colorScheme.primary
@@ -482,10 +473,15 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
                                 val clamped = x.coerceIn(0f, plotWidth)
                                 return floor(clamped / plotWidth * n).toInt().coerceIn(0, n - 1)
                             }
-                            detectTapGestures { offset ->
-                                selected = indexAt(offset.x)
-                                vibrate()
+                            // RN selectAtX: select + configured haptic only when the day changes
+                            fun selectAt(x: Float) {
+                                val idx = indexAt(x)
+                                if (idx != selected) {
+                                    selected = idx
+                                    vibrate()
+                                }
                             }
+                            detectTapGestures { offset -> selectAt(offset.x) }
                         }
                         .pointerInput(daily) {
                             detectHorizontalDragGestures { change, _ ->
@@ -495,7 +491,7 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
                                 val idx = floor(clamped / plotWidth * n).toInt().coerceIn(0, n - 1)
                                 if (idx != selected) {
                                     selected = idx
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    vibrate()
                                 }
                             }
                         },
@@ -563,140 +559,3 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
         }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MonthYearPickerSheet(
-    selectedCursor: Long,
-    onPick: (Long) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val nowYear = YearMonth.from(localDate(System.currentTimeMillis())).year
-    val selectedMonth = YearMonth.from(localDate(selectedCursor))
-    var browsedYear by remember { mutableIntStateOf(selectedMonth.year) }
-    val density = LocalDensity.current
-
-    // RN MonthYearPicker: plain slide-up sheet, surfaceContainerHigh, no handle
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        dragHandle = null,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Column(Modifier.padding(bottom = 24.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { browsedYear-- }, enabled = browsedYear > 1900) {
-                    MciIcon("chevron-left", 24.dp, MaterialTheme.colorScheme.primary)
-                }
-                Text(
-                    browsedYear.toString(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp),
-                )
-                IconButton(onClick = { browsedYear++ }, enabled = browsedYear < nowYear) {
-                    MciIcon("chevron-right", 24.dp, MaterialTheme.colorScheme.primary)
-                }
-                // RN: THIS MONTH filled with primaryContainer, labelMedium 700
-                Surface(
-                    onClick = { onPick(monthCursor(System.currentTimeMillis())) },
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Text(
-                        "THIS MONTH",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                }
-            }
-            val currentMonth = YearMonth.from(localDate(System.currentTimeMillis()))
-            AnimatedContent(
-                targetState = browsedYear,
-                transitionSpec = {
-                    // RN year slide: grid slides 28dp in the travel direction, 220 ms
-                    val direction = if (targetState > initialState) 1 else -1
-                    val slide = with(density) { 28.dp.roundToPx() }
-                    (slideInHorizontally(tween(220)) { direction * slide } + fadeIn(tween(220))) togetherWith
-                        (slideOutHorizontally(tween(220)) { -direction * slide } + fadeOut(tween(220)))
-                },
-                label = "yearSlide",
-            ) { year ->
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
-                    (0 until 12).chunked(3).forEach { monthsRow ->
-                        Row(Modifier.fillMaxWidth()) {
-                            for (monthIndex in monthsRow) {
-                                val isSelected = year == selectedMonth.year &&
-                                    monthIndex + 1 == selectedMonth.monthValue
-                                val isCurrent = year == nowYear &&
-                                    monthIndex + 1 == currentMonth.monthValue
-                                val isFuture = year > nowYear ||
-                                    (year == nowYear && monthIndex + 1 > currentMonth.monthValue)
-                                Box(Modifier.weight(1f).padding(4.dp)) {
-                                    Surface(
-                                        onClick = {
-                                            onPick(
-                                                monthCursor(
-                                                    java.time.LocalDateTime.of(year, monthIndex + 1, 1, 12, 0)
-                                                        .atZone(java.time.ZoneId.systemDefault())
-                                                        .toInstant().toEpochMilli(),
-                                                ),
-                                            )
-                                        },
-                                        enabled = !isFuture,
-                                        shape = MaterialTheme.shapes.medium,
-                                        color = when {
-                                            isSelected -> MaterialTheme.colorScheme.primary
-                                            isCurrent -> MaterialTheme.colorScheme.primaryContainer
-                                            else -> Color.Transparent
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(56.dp),
-                                    ) {
-                                        // RN: selection is the filled pill alone, no checkmark
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                monthShort(monthIndex),
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                                color = when {
-                                                    isSelected -> MaterialTheme.colorScheme.onPrimary
-                                                    isFuture -> SpendrTheme.colors.textTertiary
-                                                    isCurrent -> MaterialTheme.colorScheme.onPrimaryContainer
-                                                    else -> MaterialTheme.colorScheme.onSurface
-                                                },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun monthPillLabel(cursor: Long): String {
-    val date = localDate(cursor)
-    val month = date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)
-    return "$month ${date.year}"
-}
-
-private fun monthShort(index: Int): String =
-    java.time.Month.of(index + 1).getDisplayName(
-        java.time.format.TextStyle.SHORT,
-        java.util.Locale.ENGLISH,
-    )

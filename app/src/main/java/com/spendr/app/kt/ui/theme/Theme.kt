@@ -11,6 +11,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -24,10 +25,20 @@ import com.spendr.app.kt.data.settings.ThemeMode
 /** MD2 Pink 500 — the RN app's default brand seed. */
 const val DEFAULT_SEED = "#E91E63"
 
-/** The 12 preset seeds from the RN settings screen, in order. */
+/**
+ * Preset seeds for the custom theme picker, in order: the original 12 from the
+ * RN settings screen first, then a full hue-wheel spread (pinks → reds →
+ * oranges → greens → cyans → blues → purples → browns → greys).
+ */
 val PRESET_SEEDS = listOf(
+    // Original 12 (RN settings screen)
     "#E91E63", "#E65100", "#F9A825", "#558B2F", "#2E7D32", "#00838F",
     "#1565C0", "#3F51B5", "#6A1B9A", "#AD1457", "#5D4037", "#424242",
+    // Extended palette (kept at 30 total: 6 full rows of 5)
+    "#D81B60", "#C62828", "#F4511E", "#FB8C00", "#9E9D24",
+    "#1B5E20", "#00695C", "#00ACC1", "#039BE5", "#1E88E5",
+    "#3949AB", "#5E35B1", "#8E24AA", "#FF6F00", "#6D4C41",
+    "#546E7A", "#757575", "#212121",
 )
 
 /** RN radius tokens: xs 8, sm 12, md 16, lg 20, xl 28. */
@@ -77,14 +88,16 @@ object SpendrTheme {
         @Composable get() = LocalSpendrColors.current
 }
 
+/** Parses a `#RRGGBB` seed hex, falling back to the brand pink. */
+fun parseSeedColor(hex: String): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color(0xFFE91E63))
+
 fun resolveSeed(settings: Settings): Color {
     val hex = when (settings.colorSource) {
         ColorSource.USER -> settings.userSeed ?: DEFAULT_SEED
         else -> DEFAULT_SEED
     }
-    return runCatching {
-        Color(android.graphics.Color.parseColor(hex))
-    }.getOrDefault(Color(0xFFE91E63))
+    return parseSeedColor(hex)
 }
 
 @Composable
@@ -98,22 +111,29 @@ fun SpendrTheme(
         ThemeMode.DARK -> true
     }
 
-    val scheme: ColorScheme = when {
-        settings.colorSource == ColorSource.WALLPAPER && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (dark) {
-                dynamicDarkColorScheme(LocalContext.current)
-            } else {
-                dynamicLightColorScheme(LocalContext.current)
-            }
-        settings.colorSource == ColorSource.WALLPAPER && dark -> darkColorScheme()
-        settings.colorSource == ColorSource.WALLPAPER -> lightColorScheme()
-        else -> dynamicColorScheme(
-            resolveSeed(settings),
-            dark,
-            false,
-            style = PaletteStyle.TonalSpot,
-            contrastLevel = 0.0,
-        )
+    // Composable-call structure must not depend on `settings`: the scheme is
+    // computed BEFORE anything user-facing in the tree (nav state included),
+    // and a settings-driven branch flip here would re-key the whole subtree
+    // below and reset rememberSaveable state (nav back stack → Home). Hoist
+    // locals so every path performs the same composable calls.
+    val context = LocalContext.current
+    val scheme: ColorScheme = if (settings.colorSource == ColorSource.WALLPAPER) {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dark -> dynamicDarkColorScheme(context)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
+            dark -> darkColorScheme()
+            else -> lightColorScheme()
+        }
+    } else {
+        remember(resolveSeed(settings), dark) {
+            dynamicColorScheme(
+                resolveSeed(settings),
+                dark,
+                false,
+                style = PaletteStyle.TonalSpot,
+                contrastLevel = 0.0,
+            )
+        }
     }
 
     val spendrColors = SpendrColors(

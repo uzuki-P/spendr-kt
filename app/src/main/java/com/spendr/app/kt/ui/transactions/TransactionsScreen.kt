@@ -1,15 +1,16 @@
 package com.spendr.app.kt.ui.transactions
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.BasicTextField
@@ -39,9 +42,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -50,7 +51,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,11 +73,19 @@ import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.monthCursor
 import com.spendr.app.kt.domain.monthRange
 import com.spendr.app.kt.domain.model.DateRange
+import com.spendr.app.kt.ui.components.BouncyButton
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.BouncySurface
+import com.spendr.app.kt.ui.components.BouncyTextButton
 import com.spendr.app.kt.ui.components.CategoryIconBadge
+import com.spendr.app.kt.ui.components.CategoryMultiSelectSheet
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.MonthPager
+import com.spendr.app.kt.ui.components.MonthYearPickerSheet
+import com.spendr.app.kt.ui.components.monthPillLabel
 import com.spendr.app.kt.ui.components.monthWindow
 import com.spendr.app.kt.ui.components.ScrollDateBadge
+import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
 private data class DayGroup(
@@ -150,10 +158,13 @@ fun TransactionsScreen(
     val filterState by viewModel.filterState.collectAsState()
 
     var monthCursorState by remember { mutableStateOf(monthCursor(System.currentTimeMillis())) }
-    val months = remember { monthWindow(System.currentTimeMillis()) }
+    val months = remember(monthCursorState) {
+        monthWindow(System.currentTimeMillis(), include = monthCursorState)
+    }
     var actionForRow by remember { mutableStateOf<TransactionWithCategoryRow?>(null) }
     var deleteForRow by remember { mutableStateOf<TransactionWithCategoryRow?>(null) }
     var showFilters by remember { mutableStateOf(false) }
+    var showMonthPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(prefilteredCategoryId) {
         prefilteredCategoryId?.let(viewModel::setPrefilteredCategory)
@@ -168,14 +179,14 @@ fun TransactionsScreen(
             title = { Text("Delete transaction?") },
             text = { Text("This action cannot be undone.") },
             confirmButton = {
-                TextButton(
+                BouncyTextButton(
                     onClick = {
                         viewModel.delete(deleteForRow!!.transaction.id)
                         deleteForRow = null
                     },
                 ) { Text("Delete") }
             },
-            dismissButton = { TextButton(onClick = { deleteForRow = null }) { Text("Cancel") } },
+            dismissButton = { BouncyTextButton(onClick = { deleteForRow = null }) { Text("Cancel") } },
         )
     }
 
@@ -191,7 +202,7 @@ fun TransactionsScreen(
                 leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) },
                 modifier = Modifier
                     .padding(horizontal = 8.dp)
-                    .clickable {
+                    .pressScale {
                         actionForRow = null
                         onOpenEdit(row.transaction.id)
                     },
@@ -201,7 +212,7 @@ fun TransactionsScreen(
                 leadingContent = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
                 modifier = Modifier
                     .padding(horizontal = 8.dp)
-                    .clickable {
+                    .pressScale {
                         actionForRow = null
                         onDuplicate(row.transaction.id)
                     },
@@ -213,7 +224,7 @@ fun TransactionsScreen(
                 },
                 modifier = Modifier
                     .padding(start = 8.dp, end = 8.dp, bottom = 24.dp)
-                    .clickable {
+                    .pressScale {
                         actionForRow = null
                         deleteForRow = row
                     },
@@ -227,87 +238,52 @@ fun TransactionsScreen(
             TopAppBar(
                 title = { Text("Transactions", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    BouncyIconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                // Month/year pill (same as Reports): jumps outside the tab window
+                actions = {
+                    BouncySurface(
+                        onClick = { showMonthPicker = true },
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.CalendarMonth,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                com.spendr.app.kt.ui.components.monthPillLabel(monthCursorState),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Icon(
+                                Icons.Outlined.ExpandMore,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 },
             )
         },
     ) { innerPadding ->
-        Column(
-            Modifier
-                .padding(innerPadding)
-                .fillMaxSize(),
-        ) {
         MonthPager(
             selectedCursor = monthCursorState,
             months = months,
             onMonthChange = { monthCursorState = it },
-            modifier = Modifier.fillMaxSize(),
-        ) { _ ->
-            Column(Modifier.fillMaxSize()) {
-                // Summary card (elevated, radius 28) — label, amount, footer row
-                val monthTotal = transactions.sumOf { it.transaction.paidAmount }
-                Card(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                ) {
-                    Column(
-                        Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            "Total spending",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            formatRupiah(monthTotal),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = SpendrTheme.colors.expense,
-                            maxLines = 1,
-                        )
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                MciIcon(
-                                    "receipt-text-outline",
-                                    18.dp,
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    transactions.size.toString() + " transaction" +
-                                        if (transactions.size == 1) "" else "s",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                            }
-                            TextButton(onClick = onOpenReports) {
-                                MciIcon("chart-line", 18.dp, MaterialTheme.colorScheme.primary)
-                                Text(
-                                    "Full report",
-                                    modifier = Modifier.padding(start = 4.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Search pill with inline query + filter count (RN SearchBar)
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
+            topContent = {
+                // Pinned: search pill with inline query + filter count (RN SearchBar)
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -350,12 +326,12 @@ fun TransactionsScreen(
                             },
                         )
                         if (filterState.search.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setFilters { it.copy(search = "") } }) {
+                            BouncyIconButton(onClick = { viewModel.setFilters { it.copy(search = "") } }) {
                                 MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Box {
-                            Surface(
+                            BouncySurface(
                                 onClick = { showFilters = true },
                                 shape = androidx.compose.foundation.shape.CircleShape,
                                 color = if (filterState.activeCount > 0) {
@@ -397,24 +373,31 @@ fun TransactionsScreen(
                         }
                     }
                 }
+            },
+        ) { _ ->
+            val grouped = remember(transactions, filterState.discountOnly, filterState.sortMode) {
+                buildGroups(transactions, filterState.discountOnly, filterState.sortMode)
+            }
 
-                if (showFilters) {
-                    FilterDialog(
-                        current = filterState,
-                        categories = viewModel.categories.collectAsState().value,
-                        onDismiss = { showFilters = false },
-                        onApply = { filters ->
-                            viewModel.setFilters { filters }
-                            showFilters = false
-                        },
+            if (showFilters) {
+                FilterDialog(
+                    current = filterState,
+                    categories = viewModel.categories.collectAsState().value,
+                    onDismiss = { showFilters = false },
+                    onApply = { filters ->
+                        viewModel.setFilters { filters }
+                        showFilters = false
+                    },
+                )
+            }
+
+            if (transactions.isEmpty()) {
+                Column(Modifier.fillMaxSize()) {
+                    TransactionsSummaryCard(
+                        monthTotal = 0L,
+                        count = 0,
+                        onOpenReports = onOpenReports,
                     )
-                }
-
-                val grouped = remember(transactions, filterState.discountOnly, filterState.sortMode) {
-                    buildGroups(transactions, filterState.discountOnly, filterState.sortMode)
-                }
-
-                if (transactions.isEmpty()) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -428,49 +411,57 @@ fun TransactionsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                } else {
-                    val listState = rememberLazyListState()
-                    var badgeVisible by remember { mutableStateOf(false) }
-                    LaunchedEffect(listState.isScrollInProgress) {
-                        if (listState.isScrollInProgress) {
-                            badgeVisible = true
-                        } else {
-                            kotlinx.coroutines.delay(1000)
-                            badgeVisible = false
-                        }
+                }
+            } else {
+                val listState = rememberLazyListState()
+                var badgeVisible by remember { mutableStateOf(false) }
+                LaunchedEffect(listState.isScrollInProgress) {
+                    if (listState.isScrollInProgress) {
+                        badgeVisible = true
+                    } else {
+                        kotlinx.coroutines.delay(1000)
+                        badgeVisible = false
                     }
-                    val badgeLabel = remember(listState.firstVisibleItemIndex, grouped) {
-                        var headerIndex = 0
-                        var current: String? = null
-                        for (group in grouped) {
-                            if (listState.firstVisibleItemIndex >= headerIndex) current = group.label
-                            headerIndex += 1 + group.rows.size
-                        }
-                        current
+                }
+                val badgeLabel = remember(listState.firstVisibleItemIndex, grouped) {
+                    var current: String? = null
+                    for ((index, group) in grouped.withIndex()) {
+                        val headerIndex = grouped.take(index).sumOf { 1 + it.rows.size }
+                        if (listState.firstVisibleItemIndex >= headerIndex) current = group.label
                     }
-                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-                        // RN scrollDayBadge: absolute, left 8dp, top 42% of the page
-                        ScrollDateBadge(
-                            label = badgeLabel,
-                            visible = badgeVisible,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .offset(y = maxHeight * 0.42f)
-                                .padding(start = 8.dp),
-                        )
-                        LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                            grouped.forEach { group ->
-                                item(key = "header-${group.key}") {
-                                    DayGroupHeader(group.label, group.total)
-                                }
-                                items(group.rows, key = { it.transaction.id }) { row ->
-                                    TransactionRow(
-                                        row = row,
-                                        onClick = { onOpenDetail(row.transaction.id) },
-                                        showDate = false,
-                                        onLongClick = { actionForRow = row },
-                                    )
-                                }
+                    current
+                }
+                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                    // RN scrollDayBadge: absolute, left 8dp, top 42% of the page
+                    ScrollDateBadge(
+                        label = badgeLabel,
+                        visible = badgeVisible,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(y = maxHeight * 0.42f)
+                            .padding(start = 8.dp),
+                    )
+                    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                        // Summary card scrolls away with the list (pinned above:
+                        // app bar, month tabs, search + filter only)
+                        item(key = "summary") {
+                            TransactionsSummaryCard(
+                                monthTotal = transactions.sumOf { it.transaction.paidAmount },
+                                count = transactions.size,
+                                onOpenReports = onOpenReports,
+                            )
+                        }
+                        grouped.forEach { group ->
+                            item(key = "header-${group.key}") {
+                                DayGroupHeader(group.label, group.total)
+                            }
+                            items(group.rows, key = { it.transaction.id }) { row ->
+                                TransactionRow(
+                                    row = row,
+                                    onClick = { onOpenDetail(row.transaction.id) },
+                                    showDate = false,
+                                    onLongClick = { actionForRow = row },
+                                )
                             }
                         }
                     }
@@ -478,6 +469,82 @@ fun TransactionsScreen(
             }
         }
     }
+
+    if (showMonthPicker) {
+        MonthYearPickerSheet(
+            selectedCursor = monthCursorState,
+            onPick = {
+                monthCursorState = it
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false },
+        )
+    }
+}
+
+/** Month summary card: label, total, transaction count + Full report link. */
+@Composable
+private fun TransactionsSummaryCard(
+    monthTotal: Long,
+    count: Int,
+    onOpenReports: () -> Unit,
+) {
+    Card(
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+    ) {
+        Column(
+            Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                "Total spending",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                formatRupiah(monthTotal),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = SpendrTheme.colors.expense,
+                maxLines = 1,
+            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    MciIcon(
+                        "receipt-text-outline",
+                        18.dp,
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        count.toString() + " transaction" + if (count == 1) "" else "s",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                BouncyTextButton(onClick = onOpenReports) {
+                    MciIcon("chart-line", 18.dp, MaterialTheme.colorScheme.primary)
+                    Text(
+                        "Full report",
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -532,6 +599,7 @@ private fun FilterDialog(
                             SortTile(SortMode.AMOUNT_DESC == sortMode, "sort-numeric-descending", Modifier.weight(1f)) { sortMode = SortMode.AMOUNT_DESC }
                             SortTile(SortMode.AMOUNT_ASC == sortMode, "sort-numeric-ascending", Modifier.weight(1f)) { sortMode = SortMode.AMOUNT_ASC }
                         }
+
                         Text(
                             sortMode.label,
                             style = MaterialTheme.typography.labelMedium,
@@ -550,7 +618,7 @@ private fun FilterDialog(
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Surface(
+                        BouncySurface(
                             onClick = { showCategoryPicker = true },
                             shape = MaterialTheme.shapes.medium,
                             color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -633,14 +701,14 @@ private fun FilterDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (stagedChanged) {
-                        TextButton(onClick = {
+                        BouncyTextButton(onClick = {
                             categoryIds = emptyList()
                             discountOnly = false
                             sortMode = SortMode.DATE_DESC
                         }) { Text("Clear all") }
                     }
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    Button(onClick = {
+                    BouncyTextButton(onClick = onDismiss) { Text("Cancel") }
+                    BouncyButton(onClick = {
                         onApply(current.copy(search = search, categoryIds = categoryIds, discountOnly = discountOnly, sortMode = sortMode))
                     }) { Text("Apply") }
                 }
@@ -669,7 +737,7 @@ private fun SortTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Surface(
+    BouncySurface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
         color = if (selected) {
@@ -688,181 +756,6 @@ private fun SortTile(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-            )
-        }
-    }
-}
-
-/** RN CategoryPicker in multiple mode: search pill + 3-column grid + count/Done footer. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CategoryMultiSelectSheet(
-    categories: List<com.spendr.app.kt.data.db.entity.CategoryEntity>,
-    selectedIds: List<Long>,
-    onDone: (List<Long>) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var query by remember { mutableStateOf("") }
-    var draft by remember { mutableStateOf(selectedIds) }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp)) {
-            Text(
-                "Select categories",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-            // Search pill
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    Modifier.padding(start = 16.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    MciIcon("magnify", 20.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        singleLine = true,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 14.dp),
-                        decorationBox = { inner ->
-                            Box {
-                                if (query.isEmpty()) {
-                                    Text(
-                                        "Search categories",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = SpendrTheme.colors.textTertiary,
-                                    )
-                                }
-                                inner()
-                            }
-                        },
-                    )
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
-                            MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-            val filtered = remember(categories, query) {
-                categories.filter { it.name.contains(query.trim(), ignoreCase = true) }
-            }
-            Column(
-                Modifier
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState())
-                    .padding(top = 8.dp),
-            ) {
-                if (query.isEmpty()) {
-                    CategoryTile(
-                        label = "All categories",
-                        icon = null,
-                        color = null,
-                        selected = draft.isEmpty(),
-                        onClick = { draft = emptyList() },
-                        modifier = Modifier.fillMaxWidth(1f / 3f),
-                    )
-                }
-                filtered.chunked(3).forEach { rowCategories ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (category in rowCategories) {
-                            CategoryTile(
-                                label = category.name,
-                                icon = category.icon,
-                                color = category.color,
-                                selected = category.id in draft,
-                                onClick = {
-                                    draft = if (category.id in draft) draft - category.id else draft + category.id
-                                },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        repeat(3 - rowCategories.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    if (draft.isEmpty()) "All categories" else "${draft.size} selected",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-                Button(onClick = { onDone(draft) }) { Text("Done") }
-            }
-        }
-    }
-}
-
-/** RN CategoryPicker tile: bordered rounded square, icon circle over the name. */
-@Composable
-private fun CategoryTile(
-    label: String,
-    icon: String?,
-    color: String?,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        },
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent,
-        ),
-        modifier = modifier,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(vertical = 12.dp),
-        ) {
-            if (icon != null && color != null) {
-                CategoryIconBadge(icon = icon, color = color, size = 40.dp)
-            } else {
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .background(MaterialTheme.colorScheme.surface, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MciIcon("shape-outline", 20.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }

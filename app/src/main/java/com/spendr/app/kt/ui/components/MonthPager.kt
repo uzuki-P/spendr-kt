@@ -35,11 +35,20 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.YearMonth
 
 /** Month identity token for a cursor: noon of the 1st, ascending index helper. */
-fun monthWindow(nowCursor: Long, monthsBack: Int = 12): List<Long> =
-    (monthsBack downTo 0).map { offset ->
-        YearMonth.from(localDate(nowCursor)).minusMonths(offset.toLong())
+fun monthWindow(nowCursor: Long, monthsBack: Int = 12, include: Long? = null): List<Long> {
+    val now = YearMonth.from(localDate(nowCursor))
+    // The window always ends at the current month; an out-of-window selected
+    // month (e.g. picked from the month/year sheet) extends it backwards.
+    val oldest = minOf(
+        now.minusMonths(monthsBack.toLong()),
+        include?.let { YearMonth.from(localDate(it)) } ?: now,
+    )
+    val count = java.time.temporal.ChronoUnit.MONTHS.between(oldest, now).toInt()
+    return (0..count).map { offset ->
+        oldest.plusMonths(offset.toLong())
             .atDay(1).atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
+}
 
 fun monthTabLabel(cursor: Long, nowCursor: Long): String {
     val selected = YearMonth.from(localDate(cursor))
@@ -57,7 +66,8 @@ private val TAB_WIDTH = 132.dp
  * Month pager with scrolling month tabs + sliding 3 dp primary indicator,
  * ported from RN `MonthPager` (tabs "This Month"/"Last Month"/"MMMM yyyy", no
  * future months). The selected tab is auto-centered like the RN `scrollTo`
- * behavior; static window — the picker covers longer jumps.
+ * behavior; static window — the picker covers longer jumps. [topContent] sits
+ * between the tabs and the pager: pinned UI that never swipes with months.
  */
 @Composable
 fun MonthPager(
@@ -65,6 +75,7 @@ fun MonthPager(
     months: List<Long>,
     onMonthChange: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    topContent: @Composable () -> Unit = {},
     pageContent: @Composable (Long) -> Unit,
 ) {
     val nowCursor = months.lastOrNull() ?: selectedCursor
@@ -111,7 +122,7 @@ fun MonthPager(
                         Modifier
                             .width(TAB_WIDTH)
                             .height(48.dp)
-                            .clickable { onMonthChange(cursor) },
+                            .pressScale { onMonthChange(cursor) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -152,6 +163,8 @@ fun MonthPager(
             }
         }
         androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        topContent()
 
         HorizontalPager(state = pagerState) { page ->
             months.getOrNull(page)?.let { cursor ->

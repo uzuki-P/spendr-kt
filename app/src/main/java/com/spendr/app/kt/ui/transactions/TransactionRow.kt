@@ -21,6 +21,7 @@ import com.spendr.app.kt.domain.formatDayShort
 import com.spendr.app.kt.domain.formatDate
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.ui.components.CategoryIconBadge
+import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
 /**
@@ -41,10 +42,14 @@ fun TransactionRow(
 ) {
     val tx = row.transaction
     val hasDiscount = (tx.discountAmount ?: 0) > 0
+    val source = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .pressScale(source)
             .combinedClickable(
+                interactionSource = source,
+                indication = androidx.compose.material3.ripple(),
                 onClick = onClick ?: {},
                 onLongClick = onLongClick,
             )

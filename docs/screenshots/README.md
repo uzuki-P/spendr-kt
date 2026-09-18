@@ -33,9 +33,20 @@ mode.
 | `add-spending-discount.png` | Add Spending (discount) | Original/Discount/You pay, Rp/% toggle, Remove discount |
 | `add-spending-calendar.png` | Date calendar sheet | Month header + chevrons, weekday row, day grid, TODAY pill |
 | `add-spending-category-picker.png` | Category picker sheet | Drag handle, title, search pill, 3-column grid, recents first, Manage categories |
-| `settings.png` | Settings | Uppercase group labels, theme tiles, compact rows with chevrons |
-| `settings-backup-restore.png` | Backup & restore | Folder/automatic/rotation rows, back up now, CSV transfer |
+| `settings.png` | Settings (top) | Appearance + Theme color cards, primary-filled selected tiles, bordered idle tiles |
+| `settings-theme-color.png` | Settings (custom color) | 12-seed swatch grid, 5 per row, white ring + check on the picked seed |
+| `settings-data.png` | Settings (scrolled) | Spending/Data/Haptics/Developer groups with tinted row badges |
+| `settings-quick-add.png` | Quick Add | Tonal Add quick add, empty state, delete rows |
+| `settings-backup-restore.png` | Backup & restore | Folder/automatic/rotation rows, back up now, restore |
+| `settings-backup-csv.png` | Backup & restore (scrolled) | CSV transfer group: export/import rows |
+| `settings-clear-dialog.png` | Clear database dialog | Confirm body, Cancel + destructive confirm |
 | `settings-vibration-dialog.png` | Vibration strength dialog | Radio options with ms values, custom slider |
+| `settings-debug.png` | Debug | Seed debug data row |
+| `category-manage.png` | Manage Categories | Back arrow appbar, tonal Add category, rows with reorder/edit/delete actions |
+| `category-manage-add-form.png` | New/Edit category sheet | Label-above name field, icon tile grid, color swatch circles, pill Save |
+
+`category-manage*.png` exist in both folders; the OG captures came from
+`com.spendr.app` (Settings → Manage categories → Add category).
 
 ## Refreshing these
 

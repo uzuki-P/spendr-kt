@@ -25,7 +25,7 @@ import kotlin.math.roundToLong
 class HomeViewModel(
     private val transactions: TransactionRepository,
     quickAddsRepository: QuickAddRepository,
-    lastAddedTransactionId: kotlinx.coroutines.flow.StateFlow<Long?>,
+    private val lastAddedTransactionId: kotlinx.coroutines.flow.MutableStateFlow<Long?>,
 ) : ViewModel() {
 
     data class PaceData(
@@ -51,7 +51,12 @@ class HomeViewModel(
         quickAddsRepository.observeQuickAdds()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val lastAddedId: StateFlow<Long?> = lastAddedTransactionId
+    val lastAddedId: StateFlow<Long?> = lastAddedTransactionId.asStateFlow()
+
+    /** One-shot: clears the pulse id so it never re-fires on later Home visits. */
+    fun consumeLastAddedId() {
+        lastAddedTransactionId.value = null
+    }
 
     init {
         refresh()

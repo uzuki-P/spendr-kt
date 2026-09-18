@@ -86,8 +86,9 @@ class ImportExportRepository(
     suspend fun importCsv(content: String, format: CsvFormat): ImportResult = db.withTransaction {
         val categoryList = categories.listCategories()
         val byName = categoryList.associateBy { it.name.trim().lowercase() }.toMutableMap()
-        val paletteCursorStart = categoryList.size
-        var paletteCursor = 0
+        // RN buildImportContext: the palette cursor starts after the existing
+        // categories, so auto-created colors continue the sequence
+        var paletteCursor = categoryList.size
         var categoriesCreated = 0
 
         val existing = transactions.listTransactions()
@@ -123,7 +124,10 @@ class ImportExportRepository(
                 )
             }
             CsvFormat.MONEY_LOVER -> MoneyLoverCsv.parse(content).map { record ->
-                val paid = kotlin.math.abs(record.amount)
+                // RN importMoneyLoverCsv skip order: bad amount → bad date → non-positive
+                val amount = record.amount ?: return@map null
+                val dateMs = record.date ?: return@map null
+                val paid = kotlin.math.abs(amount)
                 if (paid <= 0) return@map null
                 val categoryId = ensureCategory(record.category, null, null) ?: return@map null
                 val note = record.note.ifEmpty { null }
@@ -137,9 +141,9 @@ class ImportExportRepository(
                         note = note,
                         merchant = null,
                         tags = null,
-                        date = record.date,
+                        date = dateMs,
                     ),
-                    dedupeKey(record.date, paid, record.note, record.category),
+                    dedupeKey(dateMs, paid, record.note, record.category),
                     null,
                 )
             }

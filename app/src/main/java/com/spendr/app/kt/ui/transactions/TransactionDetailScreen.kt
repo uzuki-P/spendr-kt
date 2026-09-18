@@ -40,6 +40,10 @@ import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatDateTime
 import com.spendr.app.kt.domain.formatFullDate
 import com.spendr.app.kt.domain.formatRupiah
+import com.spendr.app.kt.ui.components.BouncyButton
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.BouncyTextButton
+import com.spendr.app.kt.ui.components.BouncyTonalButton
 import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.theme.SpendrTheme
@@ -68,9 +72,9 @@ fun TransactionDetailScreen(
             title = { Text("Delete transaction?") },
             text = { Text("This action cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = { viewModel.delete(onDeleted) }) { Text("Delete") }
+                BouncyTextButton(onClick = { viewModel.delete(onDeleted) }) { Text("Delete") }
             },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } },
+            dismissButton = { BouncyTextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } },
         )
     }
 
@@ -80,13 +84,13 @@ fun TransactionDetailScreen(
             TopAppBar(
                 title = { Text("Transaction", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    BouncyIconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     if (tx != null) {
-                        IconButton(onClick = { showDeleteDialog = true }) {
+                        BouncyIconButton(onClick = { showDeleteDialog = true }) {
                             MciIcon(
                                 "trash-can-outline",
                                 24.dp,
@@ -109,7 +113,7 @@ fun TransactionDetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         val row = tx
-                        FilledTonalButton(
+                        BouncyTonalButton(
                             onClick = { row?.let { onDuplicate(it.transaction.id) } },
                             enabled = row != null,
                             modifier = Modifier.weight(1f),
@@ -120,7 +124,7 @@ fun TransactionDetailScreen(
                                 modifier = Modifier.padding(start = 8.dp),
                             )
                         }
-                        Button(
+                        BouncyButton(
                             onClick = { row?.let { onEdit(it.transaction.id) } },
                             enabled = row != null,
                             modifier = Modifier.weight(1f),

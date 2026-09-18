@@ -14,17 +14,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.AlertDialog
@@ -61,7 +56,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,8 +65,13 @@ import com.spendr.app.kt.domain.formatDate
 import com.spendr.app.kt.domain.formatFullDate
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.ui.add.AddSpendingViewModel.SuggestionMode
+import com.spendr.app.kt.ui.components.BouncyButton
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.BouncySurface
+import com.spendr.app.kt.ui.components.BouncyTextButton
 import com.spendr.app.kt.ui.components.CalendarSheet
 import com.spendr.app.kt.ui.components.CategoryIconBadge
+import com.spendr.app.kt.ui.components.CategoryPickerContent
 import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
@@ -94,14 +93,17 @@ fun AddSpendingScreen(
     viewModel: AddSpendingViewModel,
     onDone: () -> Unit,
     onOpenManageCategories: () -> Unit = {},
+    onOpenManageQuickAdd: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val recentCategoryIds by viewModel.recentCategoryIds.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
+    val quickAdds by viewModel.quickAdds.collectAsState()
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+    var showQuickAddPicker by remember { mutableStateOf(false) }
     var keypadVisible by remember { mutableStateOf(true) }
     var focusStage by remember { mutableStateOf(FocusStage.AMOUNT) }
     val noteFocus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -161,8 +163,8 @@ fun AddSpendingScreen(
             onDismissRequest = { showDiscardDialog = false },
             title = { Text("Discard this entry?") },
             text = { Text("The amount you entered hasn't been saved yet.") },
-            confirmButton = { TextButton(onClick = onDone) { Text("Discard") } },
-            dismissButton = { TextButton(onClick = { showDiscardDialog = false }) { Text("Keep editing") } },
+            confirmButton = { BouncyTextButton(onClick = onDone) { Text("Discard") } },
+            dismissButton = { BouncyTextButton(onClick = { showDiscardDialog = false }) { Text("Keep editing") } },
         )
     }
 
@@ -177,11 +179,28 @@ fun AddSpendingScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.applySuggestion(suggestion, SuggestionMode.FULL) }) {
+                BouncyTextButton(onClick = { viewModel.applySuggestion(suggestion, SuggestionMode.FULL) }) {
                     Text("Replace")
                 }
             },
-            dismissButton = { TextButton(onClick = viewModel::dismissReplaceDialog) { Text("Cancel") } },
+            dismissButton = { BouncyTextButton(onClick = viewModel::dismissReplaceDialog) { Text("Cancel") } },
+        )
+    }
+
+    state.pendingQuickAddReplace?.let { qa ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissQuickAddReplace,
+            title = { Text("Replace transaction details?") },
+            text = {
+                Text(
+                    "This will overwrite the amount and discount you have entered " +
+                        "with the details from this quick add.",
+                )
+            },
+            confirmButton = {
+                BouncyTextButton(onClick = viewModel::confirmQuickAddReplace) { Text("Replace") }
+            },
+            dismissButton = { BouncyTextButton(onClick = viewModel::dismissQuickAddReplace) { Text("Cancel") } },
         )
     }
 
@@ -218,25 +237,44 @@ fun AddSpendingScreen(
         }
     }
 
+    if (showQuickAddPicker) {
+        ModalBottomSheet(onDismissRequest = { showQuickAddPicker = false }) {
+            QuickAddPickerContent(
+                items = quickAdds,
+                onSelect = {
+                    viewModel.pickQuickAdd(it)
+                    showQuickAddPicker = false
+                },
+                onManage = {
+                    showQuickAddPicker = false
+                    onOpenManageQuickAdd()
+                },
+            )
+        }
+    }
+
     androidx.compose.material3.Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(if (editing) "Edit Spending" else "Add Spending", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onDone) {
+                    BouncyIconButton(onClick = onDone) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    Icon(
-                        Icons.Outlined.Bolt,
-                        contentDescription = "Quick add prefill available on Home tiles",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
+                    // RN: lightning opens the QuickAddPicker (prefill); shows the
+                    // sheet even with no items — empty state + manage CTA there.
+                    BouncyIconButton(onClick = { showQuickAddPicker = true }) {
+                        com.spendr.app.kt.ui.components.MciIcon(
+                            "lightning-bolt",
+                            24.dp,
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (editing) {
-                        IconButton(onClick = { viewModel.deleteEditing(onDeleted = onDone) }) {
+                        BouncyIconButton(onClick = { viewModel.deleteEditing(onDeleted = onDone) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete transaction")
                         }
                     }
@@ -301,7 +339,7 @@ fun AddSpendingScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
                     )
-                Surface(
+                BouncySurface(
                     onClick = { showDatePicker = true },
                     shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -327,7 +365,7 @@ fun AddSpendingScreen(
                 }
 
             // Category select field (RN: 42dp icon, 16/8 padding, hairline border)
-            Surface(
+            BouncySurface(
                 onClick = { showCategoryPicker = true },
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -458,7 +496,7 @@ fun AddSpendingScreen(
             // hairline top border, filled Save (surfaceVariant/textTertiary disabled)
             Column {
                 HorizontalDivider(color = SpendrTheme.colors.border)
-                Button(
+                BouncyButton(
                     onClick = { viewModel.save(onSaved = onDone) },
                     enabled = state.draft.saveEnabled,
                     shape = MaterialTheme.shapes.medium,
@@ -483,7 +521,7 @@ private fun SuggestionRow(
     onFull: () -> Unit,
     onNoteOnly: () -> Unit,
 ) {
-    Surface(
+    BouncySurface(
         onClick = onFull,
         shape = MaterialTheme.shapes.medium,
         border = androidx.compose.foundation.BorderStroke(1.dp, SpendrTheme.colors.border),
@@ -539,7 +577,7 @@ private fun SuggestionRow(
                     color = SpendrTheme.colors.expense,
                 )
             }
-            Surface(
+            BouncySurface(
                 onClick = onNoteOnly,
                 shape = androidx.compose.foundation.shape.CircleShape,
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -557,138 +595,107 @@ private fun SuggestionRow(
     }
 }
 
+/**
+ * RN `QuickAddPicker`: one-tap prefill list mirroring the CategoryPicker
+ * sheet shape — item rows (badge, label, category, paid amount) plus the
+ * "Manage quick adds" link. Empty state keeps the same CTA.
+ */
 @Composable
-private fun CategoryPickerContent(
-    categories: List<com.spendr.app.kt.data.db.entity.CategoryEntity>,
-    recentCategoryIds: List<Long>,
-    selectedId: Long?,
-    onSelect: (Long) -> Unit,
+private fun QuickAddPickerContent(
+    items: List<com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow>,
+    onSelect: (com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow) -> Unit,
     onManage: () -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
-    val ordered = remember(categories, recentCategoryIds, query) {
-        val matching = categories.filter { it.name.contains(query.trim(), ignoreCase = true) }
-        val recents = recentCategoryIds.mapNotNull { id -> matching.firstOrNull { it.id == id } }
-        (recents + matching.filterNot { c -> recents.any { it.id == c.id } }).distinct()
-    }
-    // RN CategoryPicker: handle + titleLarge, pill search, 3-column grid,
-    // "Manage categories" link pinned at the bottom
     Column(Modifier.padding(start = 16.dp, end = 16.dp)) {
         Text(
-            "Select category",
+            "Quick add",
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(bottom = 12.dp),
         )
-        Surface(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                Modifier.padding(start = 16.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+        if (items.isEmpty()) {
+            // RN EmptyState: icon 40, title, message, paddingVertical xxxl
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 com.spendr.app.kt.ui.components.MciIcon(
-                    "magnify",
-                    20.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    "lightning-bolt",
+                    40.dp,
+                    SpendrTheme.colors.textTertiary,
                 )
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    singleLine = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 14.dp),
-                    decorationBox = { inner ->
-                        Box {
-                            if (query.isEmpty()) {
+                Text(
+                    "No quick add yet",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Create one to prefill Add Spending in a tap.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items.forEach { item ->
+                    BouncySurface(
+                        onClick = { onSelect(item) },
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CategoryIconBadge(
+                                icon = item.categoryIcon,
+                                color = item.categoryColor,
+                                size = 36.dp,
+                            )
+                            Column(Modifier.weight(1f)) {
                                 Text(
-                                    "Search categories",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = SpendrTheme.colors.textTertiary,
+                                    item.quickAdd.label,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    item.categoryName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            inner()
+                            item.quickAdd.paidAmount?.let { paid ->
+                                Text(
+                                    formatRupiah(paid),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SpendrTheme.colors.expense,
+                                )
+                            }
                         }
-                    },
-                )
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
-                        com.spendr.app.kt.ui.components.MciIcon(
-                            "close-circle",
-                            18.dp,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(360.dp),
-        ) {
-            items(ordered, key = { it.id }) { category ->
-                val selected = category.id == selectedId
-                Surface(
-                    onClick = { onSelect(category.id) },
-                    shape = MaterialTheme.shapes.medium,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            Color.Transparent
-                        },
-                    ),
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .pressScale(onClick = { onSelect(category.id) }),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
-                    ) {
-                        CategoryIconBadge(icon = category.icon, color = category.color, size = 40.dp)
-                        Text(
-                            category.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                        )
                     }
                 }
             }
         }
         Text(
-            "Manage categories",
+            "Manage quick adds",
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onManage)
-                .padding(vertical = 12.dp),
+                .pressScale(onClick = onManage)
+                .padding(top = 8.dp, bottom = 12.dp),
         )
     }
 }

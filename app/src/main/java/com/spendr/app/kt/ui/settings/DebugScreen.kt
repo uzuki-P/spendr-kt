@@ -4,10 +4,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -25,19 +28,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.AppContainer
 import com.spendr.app.kt.data.db.DebugSeeder
+import com.spendr.app.kt.ui.components.BouncyIconButton
+import com.spendr.app.kt.ui.components.pressScale
 import kotlinx.coroutines.launch
 
 /** Debug screen, ported from RN `DebugScreen`: seed realistic sample data. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DebugScreen(container: AppContainer) {
+fun DebugScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var confirmSeed by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { innerPadding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Debug", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    BouncyIconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
         Column(Modifier.padding(innerPadding)) {
-            TopAppBar(title = { Text("Debug", fontWeight = FontWeight.Bold) })
             Column(Modifier.padding(16.dp)) {
                 Card(
                     colors = CardDefaults.cardColors(
@@ -47,7 +63,8 @@ fun DebugScreen(container: AppContainer) {
                     ListItem(
                         headlineContent = { Text("Seed debug data", fontWeight = FontWeight.SemiBold) },
                         supportingContent = { Text("Add realistic Transactions over the last three months.") },
-                        modifier = Modifier.clickable { confirmSeed = true },
+                        modifier = Modifier
+                            .pressScale { confirmSeed = true },
                     )
                 }
             }

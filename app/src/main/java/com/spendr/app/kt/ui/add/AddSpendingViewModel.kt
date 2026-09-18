@@ -51,6 +51,7 @@ class AddSpendingViewModel(
         val editing: Boolean = false,
         val amountError: Boolean = false,
         val pendingReplace: NoteSuggestion? = null,
+        val pendingQuickAddReplace: com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow? = null,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -220,6 +221,40 @@ class AddSpendingViewModel(
 
     fun dismissReplaceDialog() {
         _state.value = _state.value.copy(pendingReplace = null)
+    }
+
+    /**
+     * RN `handlePickQuickAdd`: overwriting an amount/discount the user already
+     * keyed in is costly, so confirm first. Category/note/merchant are cheap
+     * and go through without a dialog.
+     */
+    fun pickQuickAdd(qa: com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow) {
+        val s = _state.value
+        val hasExistingAmount = s.draft.paidAmount > 0 || s.draft.originalStr.isNotBlank()
+        val hasExistingDiscount = s.draft.discountAmount > 0
+        if (hasExistingAmount || hasExistingDiscount) {
+            _state.value = s.copy(pendingQuickAddReplace = qa)
+            return
+        }
+        applyQuickAdd(qa)
+    }
+
+    private fun applyQuickAdd(qa: com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow) {
+        _state.value = _state.value.copy(
+            pendingQuickAddReplace = null,
+            draft = plainAmountDraft(qa.quickAdd.paidAmount ?: 0),
+            categoryId = qa.quickAdd.categoryId,
+            note = qa.quickAdd.note.orEmpty(),
+            merchant = qa.quickAdd.merchant.orEmpty(),
+        )
+    }
+
+    fun confirmQuickAddReplace() {
+        _state.value.pendingQuickAddReplace?.let { applyQuickAdd(it) }
+    }
+
+    fun dismissQuickAddReplace() {
+        _state.value = _state.value.copy(pendingQuickAddReplace = null)
     }
 
     fun save(onSaved: () -> Unit) {

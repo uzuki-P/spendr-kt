@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatMonthYear
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.formatRupiahCompact
+import com.spendr.app.kt.ui.components.BouncySurface
+import com.spendr.app.kt.ui.components.BouncyTextButton
 import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.pressScale
@@ -65,23 +67,33 @@ fun HomeScreen(
     val state by viewModel.state.collectAsState()
     val quickAdds by viewModel.quickAdds.collectAsState()
     val lastAddedId by viewModel.lastAddedId.collectAsState()
+    var pendingHighlightId by remember { mutableStateOf<Long?>(null) }
     var highlightRowId by remember { mutableStateOf<Long?>(null) }
     val pulse = remember { androidx.compose.animation.core.Animatable(0f) }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
-    // RN new-transaction pulse: 0 → 0.22 → 0 → 0.16 → 0 on the just-added row
+    // Buffer the just-added id once it shows up in recent, then consume it so
+    // the pulse never re-fires when re-entering Home later.
     LaunchedEffect(lastAddedId, state.recent) {
         val id = lastAddedId ?: return@LaunchedEffect
         if (state.recent.any { it.transaction.id == id }) {
-            highlightRowId = id
-            pulse.snapTo(0f)
-            pulse.animateTo(0.22f, androidx.compose.animation.core.tween(300))
-            pulse.animateTo(0f, androidx.compose.animation.core.tween(300))
-            pulse.animateTo(0.16f, androidx.compose.animation.core.tween(300))
-            pulse.animateTo(0f, androidx.compose.animation.core.tween(900))
-            highlightRowId = null
+            pendingHighlightId = id
+            viewModel.consumeLastAddedId()
         }
+    }
+
+    // RN new-transaction pulse: 0 → 0.22 → 0 → 0.16 → 0 on the just-added row
+    LaunchedEffect(pendingHighlightId) {
+        val id = pendingHighlightId ?: return@LaunchedEffect
+        highlightRowId = id
+        pulse.snapTo(0f)
+        pulse.animateTo(0.22f, androidx.compose.animation.core.tween(300))
+        pulse.animateTo(0f, androidx.compose.animation.core.tween(300))
+        pulse.animateTo(0.16f, androidx.compose.animation.core.tween(300))
+        pulse.animateTo(0f, androidx.compose.animation.core.tween(900))
+        highlightRowId = null
+        pendingHighlightId = null
     }
 
     androidx.compose.material3.Scaffold(
@@ -198,7 +210,7 @@ fun HomeScreen(
             }
             item {
                 SectionHeader(title = "Recent transactions", action = {
-                    TextButton(onClick = onOpenTransactions) {
+                    BouncyTextButton(onClick = onOpenTransactions) {
                         Text("See all", fontWeight = FontWeight.Bold)
                     }
                 })
@@ -228,7 +240,7 @@ fun HomeScreen(
 
 @Composable
 private fun HeaderCircleButton(icon: @Composable () -> Unit, onClick: () -> Unit) {
-    Surface(
+    BouncySurface(
         onClick = onClick,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,

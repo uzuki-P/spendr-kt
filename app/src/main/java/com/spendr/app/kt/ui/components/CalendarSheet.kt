@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatMonthYear
 import com.spendr.app.kt.ui.theme.SpendrTheme
@@ -72,7 +72,7 @@ fun CalendarSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Surface(
+                BouncySurface(
                     onClick = { advance(-1) },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -90,7 +90,7 @@ fun CalendarSheet(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
-                Surface(
+                BouncySurface(
                     onClick = {
                         displayed = YearMonth.from(today)
                         onPick(today)
@@ -106,7 +106,7 @@ fun CalendarSheet(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
-                Surface(
+                BouncySurface(
                     onClick = { advance(1) },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -118,13 +118,15 @@ fun CalendarSheet(
                 }
             }
 
-            // Weekday headers (Mon-first), Sat + Sun in danger
+            // Weekday headers (Mon-first), Sat + Sun in danger — centered over
+            // the date columns like the date cells themselves
             Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 WeekdayHeaders.forEach { label ->
                     Text(
                         label.uppercase(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
                         color = if (label == "Sat" || label == "Sun") {
                             danger
                         } else {
@@ -210,7 +212,7 @@ private fun MonthGrid(
                                     .padding(2.dp)
                                     .then(
                                         if (date != null) {
-                                            Modifier.clickable { onPick(date) }
+                                            Modifier.pressScale { onPick(date) }
                                         } else {
                                             Modifier
                                         },

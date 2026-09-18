@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
@@ -23,18 +24,34 @@ fun Modifier.pressScale(
     onClick: () -> Unit,
 ): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
+    pressedScaleModifier(interactionSource, pressedScale)
+        .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+}
+
+/**
+ * Scale-only variant for components that own their click
+ * (`Surface(onClick)`, M3 buttons, `clickable` rows): pass the same
+ * [MutableInteractionSource] to both this and the click handler.
+ */
+fun Modifier.pressScale(
+    interactionSource: InteractionSource,
+    pressedScale: Float = 0.98f,
+): Modifier = composed { pressedScaleModifier(interactionSource, pressedScale) }
+
+private fun Modifier.pressedScaleModifier(
+    interactionSource: InteractionSource,
+    pressedScale: Float,
+): Modifier = composed {
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
         animationSpec = spring(dampingRatio = 0.64f, stiffness = 420f),
         label = "pressScale",
     )
-    this
-        .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
-        .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+    graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
 }
 
 /** Keypad press: 0.98 spring scale plus the RN opacity 0.55 fallback. */
