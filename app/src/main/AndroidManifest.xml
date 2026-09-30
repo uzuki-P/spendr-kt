@@ -11,6 +11,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SpendrKt">
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.receipt-files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/receipt_file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -23,7 +33,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="spendrkt" />
+                <data android:scheme="${deepLinkScheme}" />
             </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"

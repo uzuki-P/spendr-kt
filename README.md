@@ -1,26 +1,27 @@
 # Spendr KT
 
-Native Android rewrite of [Spendr](https://github.com/uzuki-P/spendr) in Kotlin +
-Jetpack Compose. The React Native app lives at `~/projects/_sandbox/spendr` and
-is **frozen for new features** while this rewrite catches up; fixes only.
+Native Android app in Kotlin and Jetpack Compose. The earlier React Native
+source repository has been deleted; archived screenshots and an APK remain for
+reference.
 
-Both apps install side by side:
+The main and dev variants install side by side:
 
-| | RN app | this app |
+| | Main | Dev |
 | --- | --- | --- |
-| Application id | `com.spendr.app` | `com.spendr.app.kt` |
-| Launcher name | Spendr | spendr-kt |
+| Application id | `com.spendr.app.kt` | `com.spendr.app.kt.dev` |
+| Launcher name | Spendr | Spendr - (dev) |
+| Deep link scheme | `spendrkt` | `spendrktdev` |
 
-At cutover (ticket 14) this app takes over the original id and name. See
-`docs/adr/0003-side-by-side-identity.md`.
+Each variant has separate Android storage. Installing the dev APK does not
+replace or clear the main app.
 
 ## Build
 
 ```bash
-./gradlew :app:assembleDebug     # debug APK
-./gradlew :app:lintDebug         # lint
-./gradlew :app:testDebugUnitTest # JVM tests (Robolectric)
-./gradlew :app:assembleRelease   # release APK (see signing below)
+./gradlew :app:assembleMainAppDebug :app:assembleDevDebug
+./gradlew :app:lintMainAppDebug :app:lintDevDebug
+./gradlew :app:testMainAppDebugUnitTest :app:testDevDebugUnitTest
+./gradlew :app:assembleMainAppRelease # release APK (see signing below)
 ```
 
 Requires JDK 17 and an Android SDK with platform 36 (`local.properties` or
@@ -31,7 +32,7 @@ Requires JDK 17 and an Android SDK with platform 36 (`local.properties` or
 Release builds sign with a user-provided keystore: create `keystore.properties`
 at the repo root (git-ignored) with `storeFile`, `storePassword`, `keyAlias`,
 `keyPassword`; `storeFile` is resolved relative to the repo root. Without it,
-release builds fall back to the debug key so `assembleRelease` still produces a
+release builds fall back to the debug key so `assembleMainAppRelease` still produces a
 locally installable APK — do not ship that one.
 
 ### Versioning
@@ -47,3 +48,11 @@ tickets, PATCH for fixes. The version lives in `app/build.gradle.kts`.
 - `.scratch/compose-migration/issues/` — one file per ticket, with blocking
   edges and acceptance criteria. Pick a ticket whose blockers are all done.
 - `docs/adr/` — architecture decision records.
+
+## Receipt scanning
+
+The dev flavor reads `API_TOKEN` from `../vision-api/.env` during the Gradle
+build and sends receipt images to the private `vision-api` Tailscale route. The
+token is embedded in the dev APK, so keep that APK private and rotate the token
+if it is shared. The main flavor has no scanner token. Manual receipt entry
+works without a network connection.

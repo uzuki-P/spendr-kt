@@ -83,6 +83,7 @@ fun TransactionSearchScreen(
     val searchText by viewModel.searchText.collectAsState()
     val committedQuery by viewModel.committedSearch.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val matchingItems by viewModel.matchingItems.collectAsState()
 
     var showFilters by remember { mutableStateOf(false) }
     val isSearching = searchText.trim() != committedQuery
@@ -213,11 +214,21 @@ fun TransactionSearchScreen(
                             DayGroupHeader(group.label, group.total)
                         }
                         items(group.rows, key = { it.transaction.id }) { row ->
+                            Column {
+                            matchingItems[row.transaction.id]?.let { name ->
+                                Text(
+                                    "Item: $name",
+                                    modifier = Modifier.padding(start = 70.dp, top = 8.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                             TransactionRow(
                                 row = row,
                                 onClick = { onOpenDetail(row.transaction.id) },
                                 showDate = false,
                             )
+                            }
                         }
                     }
                 }

@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -28,6 +29,7 @@ import com.spendr.app.kt.ui.categories.CategoryManageScreen
 import com.spendr.app.kt.ui.home.HomeScreen
 import com.spendr.app.kt.ui.home.HomeViewModel
 import com.spendr.app.kt.ui.quickadd.QuickAddManageScreen
+import com.spendr.app.kt.ui.receipt.ReceiptScreen
 import com.spendr.app.kt.ui.reports.ReportsScreen
 import com.spendr.app.kt.ui.reports.ReportsViewModel
 import com.spendr.app.kt.ui.search.TransactionSearchScreen
@@ -39,6 +41,7 @@ import com.spendr.app.kt.ui.transactions.TransactionDetailScreen
 import com.spendr.app.kt.ui.transactions.TransactionDetailViewModel
 import com.spendr.app.kt.ui.transactions.TransactionsScreen
 import com.spendr.app.kt.ui.transactions.TransactionsViewModel
+import kotlinx.coroutines.launch
 
 object Routes {
     const val HOME = "home"
@@ -46,8 +49,9 @@ object Routes {
     const val SEARCH = "search"
     const val REPORTS = "reports"
     const val ADD = "add?transactionId={transactionId}&quickAddId={quickAddId}&duplicateFromId={duplicateFromId}"
-    const val ADD_PATTERN = "spendrkt://add"
+    val ADD_PATTERN = "${com.spendr.app.kt.BuildConfig.DEEP_LINK_SCHEME}://add"
     const val DETAIL = "transaction/{id}"
+    const val RECEIPT = "receipt?transactionId={transactionId}"
     const val SETTINGS = "settings"
     const val BACKUP = "backup"
     const val CATEGORIES = "categories"
@@ -68,6 +72,7 @@ object Routes {
     }
 
     fun detail(id: Long) = "transaction/$id"
+    fun receipt(id: Long? = null) = if (id == null) "receipt" else "receipt?transactionId=$id"
 }
 
 /**
@@ -88,10 +93,11 @@ private val AccelerateQuint = CubicBezierEasing(0.64f, 0f, 0.78f, 0f)
 @Composable
 fun SpendrApp(container: AppContainer) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     // Deep links (tile + shortcuts + browser): spendrkt://add[?quickAddId=N]
     LaunchedEffect(Unit) {
         SpendrApplication.pendingDeepLink.collect { uri ->
-            if (uri?.startsWith("spendrkt://") == true) {
+            if (uri?.startsWith("${com.spendr.app.kt.BuildConfig.DEEP_LINK_SCHEME}://") == true) {
                 SpendrApplication.pendingDeepLink.value = null
                 val quickAddId = uri.substringAfter("quickAddId=", "")
                     .takeWhile { it.isDigit() }.toLongOrNull()
@@ -133,6 +139,7 @@ fun SpendrApp(container: AppContainer) {
                 HomeScreen(
                     viewModel = homeViewModel,
                     onOpenAdd = { navController.navigate(Routes.add()) },
+                    onOpenReceipt = { navController.navigate(Routes.receipt()) },
                     onOpenAddQuickAdd = { navController.navigate(Routes.add(quickAddId = it)) },
                     onOpenDetail = { navController.navigate(Routes.detail(it)) },
                     onOpenTransactions = {
@@ -166,7 +173,12 @@ fun SpendrApp(container: AppContainer) {
                     viewModel = transactionsViewModel,
                     onOpenAdd = { navController.navigate(Routes.add()) },
                     onOpenDetail = { navController.navigate(Routes.detail(it)) },
-                    onOpenEdit = { navController.navigate(Routes.add(transactionId = it)) },
+                    onOpenEdit = { id -> scope.launch {
+                        val route = if (container.transactions.getTransaction(id)?.type == "receipt") {
+                            Routes.receipt(id)
+                        } else Routes.add(transactionId = id)
+                        navController.navigate(route)
+                    } },
                     onOpenReports = { navController.navigate(Routes.REPORTS) },
                     onDuplicate = transactionsViewModel::duplicate,
                     prefilteredCategoryId = entry.arguments?.getString("categoryId")?.toLongOrNull(),
@@ -177,7 +189,7 @@ fun SpendrApp(container: AppContainer) {
                 val searchViewModel: TransactionSearchViewModel = viewModel(
                     factory = viewModelFactory {
                         initializer {
-                            TransactionSearchViewModel(container.transactions, container.categories)
+                            TransactionSearchViewModel(container.transactions, container.categories, container.receipts)
                         }
                     },
                 )
@@ -251,6 +263,21 @@ fun SpendrApp(container: AppContainer) {
                 )
             }
             composable(
+                route = Routes.RECEIPT,
+                arguments = listOf(navArgument("transactionId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }),
+            ) { entry ->
+                ReceiptScreen(
+                    container = container,
+                    transactionId = entry.arguments?.getString("transactionId")?.toLongOrNull(),
+                    onDone = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
                 route = Routes.DETAIL,
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
             ) { entry ->
@@ -260,6 +287,7 @@ fun SpendrApp(container: AppContainer) {
                             TransactionDetailViewModel(
                                 container.transactions,
                                 entry.arguments?.getLong("id") ?: 0L,
+                                container.receipts,
                             )
                         }
                     },
@@ -267,8 +295,16 @@ fun SpendrApp(container: AppContainer) {
                 )
                 TransactionDetailScreen(
                     viewModel = detailViewModel,
-                    onEdit = { navController.navigate(Routes.add(transactionId = it)) },
-                    onDuplicate = { navController.navigate(Routes.add(duplicateFromId = it)) },
+                    onEdit = { id ->
+                        if (detailViewModel.transaction.value?.transaction?.type == "receipt") {
+                            navController.navigate(Routes.receipt(id))
+                        } else navController.navigate(Routes.add(transactionId = id))
+                    },
+                    onDuplicate = { id ->
+                        if (detailViewModel.transaction.value?.transaction?.type == "receipt") {
+                            detailViewModel.duplicateReceipt { navController.navigate(Routes.detail(it)) }
+                        } else navController.navigate(Routes.add(duplicateFromId = id))
+                    },
                     onDeleted = { navController.popBackStack() },
                     onBack = { navController.popBackStack() },
                 )

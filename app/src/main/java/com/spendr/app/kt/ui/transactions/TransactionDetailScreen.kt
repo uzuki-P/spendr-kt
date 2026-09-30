@@ -64,6 +64,7 @@ fun TransactionDetailScreen(
     onBack: () -> Unit,
 ) {
     val tx by viewModel.transaction.collectAsState()
+    val receiptItems by viewModel.receiptItems.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
@@ -109,7 +110,7 @@ fun TransactionDetailScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         val row = tx
@@ -200,15 +201,18 @@ fun TransactionDetailScreen(
                         )
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                "Category",
+                                if (row.transaction.type == "receipt") "Receipt at" else "Category",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
-                                row.categoryName,
+                                if (row.transaction.type == "receipt") row.transaction.merchant.orEmpty() else row.categoryName,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                             )
+                            if (row.transaction.type == "receipt") {
+                                Text(row.categoryName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                     // RN heroAmount: 1dp top border, paddingTop 16, gap 2
@@ -238,6 +242,10 @@ fun TransactionDetailScreen(
                 }
             }
 
+            if (row.transaction.type == "receipt") {
+                ReceiptItemsCard(receiptItems, row.transaction.paidAmount)
+            }
+
             // Details card: date / note / merchant
             Surface(
                 shape = MaterialTheme.shapes.large,
@@ -248,8 +256,10 @@ fun TransactionDetailScreen(
                     DetailRow("calendar-blank-outline", "Date", formatFullDate(row.transaction.date))
                     Hairline()
                     DetailRow("note-text-outline", "Note", row.transaction.note)
-                    Hairline()
-                    DetailRow("storefront-outline", "Merchant", row.transaction.merchant)
+                    if (row.transaction.type != "receipt") {
+                        Hairline()
+                        DetailRow("storefront-outline", "Merchant", row.transaction.merchant)
+                    }
                 }
             }
 
@@ -309,6 +319,49 @@ fun TransactionDetailScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReceiptItemsCard(items: List<com.spendr.app.kt.data.db.entity.ReceiptItemEntity>, paidAmount: Long) {
+    val itemTotal = items.sumOf { it.paidAmount }
+    val difference = paidAmount - itemTotal
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MciIcon("receipt-text-outline", 22.dp, MaterialTheme.colorScheme.primary)
+                Text("Receipt items", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("${items.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (items.isEmpty()) {
+                Text("No items recorded", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                items.forEachIndexed { index, item ->
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text(item.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            if (item.quantity != "1") Text("Qty ${item.quantity}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(formatRupiah(item.paidAmount), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            BreakdownRow("Items total", MaterialTheme.colorScheme.onSurfaceVariant, formatRupiah(itemTotal), MaterialTheme.colorScheme.onSurface, valueWeight = FontWeight.SemiBold)
+            if (difference != 0L) {
+                BreakdownRow(
+                    if (difference > 0) "Unallocated" else "Items exceed total",
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    formatRupiah(kotlin.math.abs(difference)),
+                    MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
     }

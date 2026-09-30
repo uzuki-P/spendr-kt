@@ -8,6 +8,7 @@ import com.spendr.app.kt.data.db.SpendrDatabase
 import com.spendr.app.kt.data.repo.CategoryRepository
 import com.spendr.app.kt.data.repo.QuickAddRepository
 import com.spendr.app.kt.data.repo.TransactionRepository
+import com.spendr.app.kt.data.repo.ReceiptRepository
 import com.spendr.app.kt.data.settings.SettingsRepository
 import com.spendr.app.kt.platform.SpendrVibrator
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,7 @@ class AppContainer(context: Application) {
     val database: SpendrDatabase = SpendrDatabase.build(context)
 
     val transactions = TransactionRepository(database)
+    val receipts = ReceiptRepository(database, transactions)
     val categories = CategoryRepository(database)
     val quickAdds = QuickAddRepository(database)
     val importExport = ImportExportRepository(database, transactions, categories)

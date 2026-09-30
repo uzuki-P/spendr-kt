@@ -33,7 +33,7 @@ class AddSpendingTileService : TileService() {
 
     @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
     private fun launchAddSpending() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ADD_SPENDING_URI)).apply {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("${com.spendr.app.kt.BuildConfig.DEEP_LINK_SCHEME}://add")).apply {
             setPackage(packageName)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -51,7 +51,4 @@ class AddSpendingTileService : TileService() {
         }
     }
 
-    private companion object {
-        const val ADD_SPENDING_URI = "spendrkt://add"
-    }
 }

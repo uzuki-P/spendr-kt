@@ -1,7 +1,6 @@
 # Ubiquitous Language
 
-Copied verbatim from the RN app (`~/projects/_sandbox/spendr/CONTEXT.md`),
-which remains the historical source while the migration runs. Spendr is a **spending-only**
+Originally copied from the now-deleted React Native app. Spendr is a **spending-only**
 personal tracker: no income, no balance, no wallet, no bank sync. The terms below
 are the canonical vocabulary for product, design, and code discussion.
 
@@ -10,6 +9,9 @@ are the canonical vocabulary for product, design, and code discussion.
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
 | **Transaction** | A single recorded spending event — the core entity. | expense, purchase, entry, "spending record" |
+| **Receipt Transaction** | A Transaction with itemized receipt lines. Its paidAmount is the only amount counted in reports. | supermarket expense |
+| **Receipt Item** | A named line on a Receipt Transaction, with quantity and line paidAmount. Search can find its parent Transaction by item name. | subtransaction |
+| **Unallocated amount** | The Receipt Transaction's paidAmount minus the sum of its Receipt Items. It can capture rounding or receipt amounts not itemized. | hidden adjustment |
 | **Spending** | The aggregate activity being tracked ("my spending this month"). Use **Transaction** for an individual record, never "a spending". | (as a singular record) |
 | **paidAmount** | The actual money that left the wallet. The authoritative recorded amount; drives all spending reports. | amount, price, cost, "pay"¹ |
 | **originalAmount** | The list price before any discount. Acts as the ceiling on **paidAmount** (`paidAmount ≤ originalAmount`). | full price, sticker price |
@@ -75,6 +77,8 @@ not modeled** — fold it into paidAmount manually.
 - A **Transaction** optionally names one **Merchant** (free text, upserted).
 - A **Transaction** always has a **paidAmount**; **originalAmount** and
   **discountAmount** are stored **only when a discount > 0 is active**.
+- A **Receipt Transaction** can have zero or more **Receipt Items**. Reports
+  count the parent **paidAmount** once, never its items separately.
 - **Savings** is derived from **discountAmount** across **Transactions**; it is
   never income and never a balance.
 - A **QuickAdd** references one **Category** and prefills a future **Transaction**.

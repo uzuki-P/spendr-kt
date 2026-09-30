@@ -21,9 +21,11 @@ import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,8 +33,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +59,7 @@ import com.spendr.app.kt.ui.transactions.TransactionRow
 fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenAdd: () -> Unit,
+    onOpenReceipt: () -> Unit,
     onOpenAddQuickAdd: (Long) -> Unit,
     onOpenDetail: (Long) -> Unit = {},
     onOpenTransactions: () -> Unit,
@@ -98,22 +101,35 @@ fun HomeScreen(
 
     androidx.compose.material3.Scaffold(
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onOpenAdd,
-                // RN FAB order: label first, then the icon ("Add ➕")
-                content = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("Add")
-                        MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.pressScale(onClick = onOpenAdd),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onOpenReceipt,
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.pressScale(onClick = onOpenReceipt),
+                ) {
+                    MciIcon("receipt-text-outline", 18.dp, MaterialTheme.colorScheme.primary)
+                    Text("Add receipt", modifier = Modifier.padding(start = 8.dp))
+                }
+                ExtendedFloatingActionButton(
+                    onClick = onOpenAdd,
+                    // RN FAB order: label first, then the icon ("Add ➕")
+                    content = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text("Add")
+                            MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.pressScale(onClick = onOpenAdd),
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
