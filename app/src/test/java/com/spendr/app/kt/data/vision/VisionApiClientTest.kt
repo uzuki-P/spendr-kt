@@ -1,5 +1,6 @@
 package com.spendr.app.kt.data.vision
 
+import android.app.Application
 import java.net.ServerSocket
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
@@ -12,7 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@Config(sdk = [35], application = Application::class)
 class VisionApiClientTest {
     @Test
     fun scanUsesJobEndpointAndPollsUntilResult() = runBlocking {
@@ -30,11 +31,19 @@ class VisionApiClientTest {
                         if (line.startsWith("Content-Length:", true)) contentLength = line.substringAfter(':').trim().toInt()
                         if (line.startsWith("Authorization:", true)) assertEquals("Bearer test-token", line.substringAfter(':').trim())
                     }
-                    repeat(contentLength) { input.read() }
+                    val body = ByteArray(contentLength)
+                    var offset = 0
+                    while (offset < body.size) offset += input.read(body, offset, body.size - offset)
                     val method = request.substringBefore(' ')
                     assertTrue(request.contains("/v1/jobs"))
                     val response = when (method) {
-                "POST" -> """{"id":"123e4567-e89b-12d3-a456-426614174000","status":"queued"}"""
+                "POST" -> {
+                    val form = body.toString(StandardCharsets.UTF_8)
+                    assertTrue(form.contains("name=\"provider\"\r\n\r\ncodex"))
+                    assertTrue(form.contains("name=\"model\"\r\n\r\ntest-model"))
+                    assertTrue(form.contains("name=\"reasoning_effort\"\r\n\r\nhigh"))
+                    """{"id":"123e4567-e89b-12d3-a456-426614174000","status":"queued"}"""
+                }
                 "GET" -> if (polls.incrementAndGet() == 1) {
                     """{"status":"running"}"""
                 } else {
@@ -54,7 +63,8 @@ class VisionApiClientTest {
         }
         worker.start()
         try {
-            val result = VisionApiClient("http://127.0.0.1:${server.localPort}", "test-token", 10)
+            val config = VisionConfiguration("http://127.0.0.1:${server.localPort}", "test-token", "codex", "test-model", "high")
+            val result = VisionApiClient(config.url, config.token, 10, config)
                 .analyze(byteArrayOf(1, 2, 3), "image/png")
             assertEquals("Market", result.merchant)
             assertEquals(130000L, result.total)

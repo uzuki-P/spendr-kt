@@ -126,6 +126,8 @@ fun TransactionSearchScreen(
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
+                    // Chips are shorter than the button's 48dp touch target
+                    itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
                     SearchChip(
                         label = filters.rangeKey.label,
@@ -161,9 +163,7 @@ fun TransactionSearchScreen(
                         checked = filters.activeCount > 0,
                         onCheckedChange = { showFilters = true },
                         shapes = IconButtonDefaults.toggleableShapes(),
-                        modifier = Modifier
-                            .align(Alignment.CenterVertically)
-                            .semantics { contentDescription = "Search filters" },
+                        modifier = Modifier.semantics { contentDescription = "Search filters" },
                     ) {
                         MciIcon(
                             "tune-variant",

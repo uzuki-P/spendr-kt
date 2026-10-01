@@ -1,5 +1,6 @@
 package com.spendr.app.kt.data.repo
 
+import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.spendr.app.kt.data.csv.CsvFormat
@@ -18,7 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], application = Application::class)
 class RepositoryTest {
 
     private lateinit var db: SpendrDatabase
@@ -131,6 +132,23 @@ class RepositoryTest {
 
         val cumulative = transactions.cumulativeDailyTotals(range, 3)
         assertEquals(listOf(10_000L, 15_000L, 15_000L), cumulative)
+    }
+
+    @Test
+    fun `monthly totals group by local month`() = runBlocking {
+        val categoryId = categories.createCategory("Food", "tag", "#A86086")
+        val hour = 60 * 60 * 1000L
+        val monthStart = com.spendr.app.kt.domain.monthRange(1_783_560_600_000L).start
+        val monthEnd = com.spendr.app.kt.domain.monthRange(monthStart).end
+        transactions.insertTransaction(input(paid = 10_000, categoryId = categoryId).copy(date = monthStart))
+        transactions.insertTransaction(input(paid = 5_000, categoryId = categoryId).copy(date = monthEnd))
+        transactions.insertTransaction(input(paid = 7_000, categoryId = categoryId).copy(date = monthStart - hour))
+
+        val month = java.time.YearMonth.from(com.spendr.app.kt.domain.localDate(monthStart))
+        assertEquals(
+            mapOf(month.minusMonths(1) to 7_000L, month to 15_000L),
+            transactions.monthlyTotals(),
+        )
     }
 
     @Test

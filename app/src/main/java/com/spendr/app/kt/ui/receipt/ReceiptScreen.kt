@@ -1,11 +1,9 @@
 package com.spendr.app.kt.ui.receipt
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LoadingIndicator
 import com.spendr.app.kt.ui.components.BouncyOutlinedButton
 import com.spendr.app.kt.ui.components.BouncyTextButton
 import com.spendr.app.kt.ui.components.BouncyTonalButton
@@ -14,10 +12,6 @@ import com.spendr.app.kt.ui.components.MorphSurface
 import com.spendr.app.kt.ui.components.SegmentedGroup
 import com.spendr.app.kt.ui.components.SpendrTopBar
 import com.spendr.app.kt.ui.components.segmentCorners
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.net.Uri
-import androidx.core.content.FileProvider
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -55,20 +49,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import org.json.JSONObject
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.AppContainer
-import com.spendr.app.kt.BuildConfig
 import com.spendr.app.kt.data.repo.ReceiptInput
 import com.spendr.app.kt.data.repo.ReceiptItemInput
-import com.spendr.app.kt.data.vision.ReceiptScanner
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.formatFullDate
 import com.spendr.app.kt.data.db.entity.CategoryEntity
@@ -83,78 +79,65 @@ import com.spendr.app.kt.ui.components.epochMsToLocalDate
 import com.spendr.app.kt.ui.components.toEpochMs
 import com.spendr.app.kt.ui.theme.SpendrTheme
 import kotlinx.coroutines.launch
-import java.io.File
 
 private data class ItemDraft(val name: String = "", val paidAmount: String = "", val quantity: String = "1")
 
+private val itemDraftSaver = listSaver<SnapshotStateList<ItemDraft>, String>(
+    save = { items -> items.map { JSONObject().put("name", it.name).put("paidAmount", it.paidAmount)
+        .put("quantity", it.quantity).toString() } },
+    restore = { items -> items.map { val item = JSONObject(it)
+        ItemDraft(item.getString("name"), item.getString("paidAmount"), item.getString("quantity"))
+    }.toMutableStateList() },
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) -> Unit, onBack: () -> Unit) {
+fun ReceiptScreen(
+    container: AppContainer,
+    transactionId: Long?,
+    onDone: (Long) -> Unit,
+    onBack: () -> Unit,
+    initialScanId: String? = null,
+    onOpenScannerSettings: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val items = remember { mutableStateListOf<ItemDraft>() }
+    val items = rememberSaveable(saver = itemDraftSaver) { mutableStateListOf<ItemDraft>() }
     var categories by remember { mutableStateOf(emptyList<CategoryEntity>()) }
-    var categoryId by remember { mutableStateOf<Long?>(null) }
-    var merchant by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var paidAmount by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(System.currentTimeMillis()) }
+    var categoryId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var merchant by rememberSaveable { mutableStateOf("") }
+    var note by rememberSaveable { mutableStateOf("") }
+    var paidAmount by rememberSaveable { mutableStateOf("") }
+    var date by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var scanError by remember { mutableStateOf<String?>(null) }
+    var activeScanId by rememberSaveable { mutableStateOf(initialScanId) }
+    var appliedScanId by rememberSaveable { mutableStateOf<String?>(null) }
+    var scanning by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(false) }
+    var initialized by rememberSaveable { mutableStateOf(false) }
     var showCategories by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-    val scanner = remember(context) { ReceiptScanner(context) }
-    var cameraPhoto by remember { mutableStateOf<File?>(null) }
-    var cameraUri by remember { mutableStateOf<Uri?>(null) }
-
-    fun scanImage(uri: Uri, photo: File? = null) {
-        scope.launch {
-            busy = true
-            scanError = null
-            try {
-                val result = scanner.scan(uri)
-                if (merchant.isBlank()) merchant = result.merchant.orEmpty()
-                if (paidAmount.isBlank()) paidAmount = result.total?.toString().orEmpty()
-                items.clear()
-                items.addAll(result.items.map { ItemDraft(it.name, it.paidAmount.toString(), it.quantity) })
-            } catch (e: Exception) {
-                scanError = e.message ?: "Could not scan the receipt. Add items manually."
-            } finally {
-                photo?.delete()
-                busy = false
-            }
-        }
-    }
-
     LaunchedEffect(transactionId) {
         categories = container.categories.listCategories()
-        categoryId = categories.firstOrNull { it.name.equals("Shopping", true) }?.id ?: categories.firstOrNull()?.id
-        if (transactionId != null) {
-            val tx = container.transactions.getTransaction(transactionId)
-            if (tx?.type == "receipt") {
-                paidAmount = tx.paidAmount.toString()
-                merchant = tx.merchant.orEmpty()
-                note = tx.note.orEmpty()
-                categoryId = tx.categoryId
-                date = tx.date
-                items.clear()
-                items.addAll(container.receipts.items(transactionId).map {
-                    ItemDraft(it.name, it.paidAmount.toString(), it.quantity)
-                })
+        if (!initialized) {
+            categoryId = categories.firstOrNull { it.name.equals("Shopping", true) }?.id ?: categories.firstOrNull()?.id
+            if (transactionId != null) {
+                val tx = container.transactions.getTransaction(transactionId)
+                if (tx?.type == "receipt") {
+                    paidAmount = tx.paidAmount.toString()
+                    merchant = tx.merchant.orEmpty()
+                    note = tx.note.orEmpty()
+                    categoryId = tx.categoryId
+                    date = tx.date
+                    items.clear()
+                    items.addAll(container.receipts.items(transactionId).map {
+                        ItemDraft(it.name, it.paidAmount.toString(), it.quantity)
+                    })
+                }
             }
+            initialized = true
         }
-    }
-
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) scanImage(uri)
-    }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        val uri = cameraUri
-        val photo = cameraPhoto
-        if (success && uri != null) scanImage(uri, photo) else photo?.delete()
-        cameraUri = null
-        cameraPhoto = null
+        loaded = true
     }
 
     if (showCategories) ModalBottomSheet(onDismissRequest = { showCategories = false }) {
@@ -191,6 +174,7 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                 val id = container.receipts.save(
                     ReceiptInput(amount, selected, merchant, note, date, parsed), transactionId,
                 )
+                activeScanId?.let { container.receiptScans.markSaved(it) }
                 container.lastAddedTransactionId.value = id
                 onDone(id)
             } catch (e: Exception) {
@@ -210,7 +194,7 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                 Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
                     BouncyButton(
                         onClick = ::saveReceipt,
-                        enabled = !busy && amount > 0 && merchant.isNotBlank() && categoryId != null,
+                        enabled = !busy && !scanning && amount > 0 && merchant.isNotBlank() && categoryId != null,
                         height = androidx.compose.material3.ButtonDefaults.MediumContainerHeight,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     ) {
@@ -247,49 +231,23 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                     )
                 }
             }
-            if (BuildConfig.VISION_API_TOKEN.isNotBlank()) {
-                Surface(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            MciIcon("line-scan", 24.dp, MaterialTheme.colorScheme.onSecondaryContainer)
-                            Text("Scan receipt", style = MaterialTheme.typography.titleMediumEmphasized)
-                        }
-                        Text("Fill the merchant, total, and items from a photo. Review them before saving.", style = MaterialTheme.typography.bodyMedium)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            BouncyButton(onClick = {
-                        try {
-                            val directory = File(context.cacheDir, "receipt_photos").apply { mkdirs() }
-                            val photo = File.createTempFile("receipt-", ".jpg", directory)
-                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.receipt-files", photo)
-                            cameraPhoto = photo
-                            cameraUri = uri
-                            camera.launch(uri)
-                        } catch (e: Exception) {
-                            cameraPhoto?.delete()
-                            cameraPhoto = null
-                            cameraUri = null
-                            scanError = e.message ?: "Could not open the camera."
-                        }
-                            }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Take photo") }
-                            BouncyOutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy, modifier = Modifier.weight(1f)) {
-                                Text("Choose image")
-                            }
-                        }
-                        if (busy) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                LoadingIndicator(modifier = Modifier.size(40.dp))
-                                Text("Reading receipt…", style = MaterialTheme.typography.bodyLargeEmphasized)
-                            }
-                        }
-                        scanError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-                    }
-                }
-            }
+            ReceiptScanPanel(
+                container = container,
+                transactionId = transactionId,
+                activeScanId = activeScanId,
+                appliedScanId = appliedScanId,
+                canApply = loaded,
+                onActiveScan = { activeScanId = it },
+                onResult = { scanId, result ->
+                    if (merchant.isBlank()) merchant = result.merchant.orEmpty()
+                    if (paidAmount.isBlank()) paidAmount = result.total?.toString().orEmpty()
+                    items.clear()
+                    items.addAll(result.items.map { ItemDraft(it.name, it.paidAmount.toString(), it.quantity) })
+                    appliedScanId = scanId
+                },
+                onBusy = { scanning = it },
+                onOpenSettings = onOpenScannerSettings,
+            )
             ReceiptLabeledField("Merchant", "e.g., Indomaret", merchant, { merchant = it })
             val selectedCategory = categories.firstOrNull { it.id == categoryId }
             SegmentedGroup {

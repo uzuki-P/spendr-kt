@@ -91,6 +91,18 @@ interface TransactionDao {
 
     @Query(
         """
+        SELECT strftime('%Y-%m', t.date / 1000, 'unixepoch', 'localtime') AS month,
+               COALESCE(SUM(t.paid_amount), 0) AS total,
+               COUNT(*) AS count
+        FROM transactions t
+        GROUP BY month
+        ORDER BY month ASC
+        """,
+    )
+    suspend fun monthlyTotals(): List<MonthlyTotalRow>
+
+    @Query(
+        """
         SELECT t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
                COALESCE(SUM(t.paid_amount), 0) AS total, COUNT(*) AS count
         FROM transactions t JOIN categories c ON c.id = t.category_id

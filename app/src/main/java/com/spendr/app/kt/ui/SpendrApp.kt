@@ -51,13 +51,14 @@ import kotlinx.coroutines.launch
 
 object Routes {
     const val HOME = "home"
-    const val TRANSACTIONS = "transactions?categoryId={categoryId}"
+    const val TRANSACTIONS = "transactions?categoryId={categoryId}&month={month}"
     const val SEARCH = "search"
     const val REPORTS = "reports"
     const val ADD = "add?transactionId={transactionId}&quickAddId={quickAddId}&duplicateFromId={duplicateFromId}"
     val ADD_PATTERN = "${com.spendr.app.kt.BuildConfig.DEEP_LINK_SCHEME}://add"
     const val DETAIL = "transaction/{id}"
-    const val RECEIPT = "receipt?transactionId={transactionId}"
+    const val RECEIPT = "receipt?transactionId={transactionId}&scanId={scanId}"
+    const val RECEIPT_SCANNER = "settings/receipt-scanner"
     const val SETTINGS = "settings"
     const val BACKUP = "backup"
     const val CATEGORIES = "categories"
@@ -75,6 +76,14 @@ object Routes {
             duplicateFromId?.let { add("duplicateFromId=$it") }
         }.joinToString("&")
         return if (query.isEmpty()) "add" else "add?$query"
+    }
+
+    fun transactions(categoryId: Long? = null, month: Long? = null): String {
+        val query = buildList {
+            categoryId?.let { add("categoryId=$it") }
+            month?.let { add("month=$it") }
+        }.joinToString("&")
+        return if (query.isEmpty()) "transactions" else "transactions?$query"
     }
 
     fun detail(id: Long) = "transaction/$id"
@@ -100,9 +109,19 @@ fun SpendrApp(container: AppContainer) {
         SpendrApplication.pendingDeepLink.collect { uri ->
             if (uri?.startsWith("${com.spendr.app.kt.BuildConfig.DEEP_LINK_SCHEME}://") == true) {
                 SpendrApplication.pendingDeepLink.value = null
-                val quickAddId = uri.substringAfter("quickAddId=", "")
-                    .takeWhile { it.isDigit() }.toLongOrNull()
-                navController.navigate(Routes.add(quickAddId = quickAddId)) { launchSingleTop = true }
+                val link = android.net.Uri.parse(uri)
+                if (link.host == "receipt") {
+                    val scanId = link.getQueryParameter("scanId")
+                    val scan = scanId?.let { container.receiptScans.get(it) }
+                    if (scan != null) {
+                        val route = Routes.receipt(scan.transactionId) +
+                            (if (scan.transactionId == null) "?" else "&") + "scanId=${scan.id}"
+                        navController.navigate(route) { launchSingleTop = true }
+                    }
+                } else if (link.host == "add") {
+                    val quickAddId = link.getQueryParameter("quickAddId")?.toLongOrNull()
+                    navController.navigate(Routes.add(quickAddId = quickAddId)) { launchSingleTop = true }
+                }
             }
         }
     }
@@ -168,7 +187,7 @@ fun SpendrApp(container: AppContainer) {
                     onOpenAddQuickAdd = { navController.navigate(Routes.add(quickAddId = it)) },
                     onOpenDetail = { navController.navigate(Routes.detail(it)) },
                     onOpenTransactions = {
-                        navController.navigate(Routes.TRANSACTIONS) { launchSingleTop = true }
+                        navController.navigate(Routes.transactions()) { launchSingleTop = true }
                     },
                     onOpenSearch = {
                         navController.navigate(Routes.SEARCH) { launchSingleTop = true }
@@ -181,6 +200,11 @@ fun SpendrApp(container: AppContainer) {
                 route = Routes.TRANSACTIONS,
                 arguments = listOf(
                     navArgument("categoryId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("month") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
@@ -207,6 +231,7 @@ fun SpendrApp(container: AppContainer) {
                     onOpenReports = { navController.navigate(Routes.REPORTS) },
                     onDuplicate = transactionsViewModel::duplicate,
                     prefilteredCategoryId = entry.arguments?.getString("categoryId")?.toLongOrNull(),
+                    initialMonthCursor = entry.arguments?.getString("month")?.toLongOrNull(),
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -232,11 +257,11 @@ fun SpendrApp(container: AppContainer) {
                 )
                 ReportsScreen(
                     viewModel = reportsViewModel,
-                    onSeeAll = { _ ->
-                        navController.navigate(Routes.TRANSACTIONS) { launchSingleTop = true }
+                    onSeeAll = { month ->
+                        navController.navigate(Routes.transactions(month = month)) { launchSingleTop = true }
                     },
-                    onOpenCategory = { categoryId ->
-                        navController.navigate("transactions?categoryId=$categoryId") { launchSingleTop = true }
+                    onOpenCategory = { categoryId, month ->
+                        navController.navigate(Routes.transactions(categoryId, month)) { launchSingleTop = true }
                     },
                     onBack = { navController.popBackStack() },
                 )
@@ -293,11 +318,17 @@ fun SpendrApp(container: AppContainer) {
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                }, navArgument("scanId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }),
             ) { entry ->
                 ReceiptScreen(
                     container = container,
                     transactionId = entry.arguments?.getString("transactionId")?.toLongOrNull(),
+                    initialScanId = entry.arguments?.getString("scanId"),
+                    onOpenScannerSettings = { navController.navigate(Routes.RECEIPT_SCANNER) },
                     onDone = { navController.popBackStack() },
                     onBack = { navController.popBackStack() },
                 )
@@ -342,7 +373,11 @@ fun SpendrApp(container: AppContainer) {
                     onOpenCategories = { navController.navigate(Routes.CATEGORIES) },
                     onOpenQuickAdd = { navController.navigate(Routes.QUICK_ADD_MANAGE) },
                     onOpenDebug = { navController.navigate(Routes.DEBUG) },
+                    onOpenReceiptScanner = { navController.navigate(Routes.RECEIPT_SCANNER) },
                 )
+            }
+            composable(Routes.RECEIPT_SCANNER) {
+                com.spendr.app.kt.ui.settings.ReceiptScannerSettingsScreen(container) { navController.popBackStack() }
             }
             composable(Routes.BACKUP) {
                 BackupRestoreScreen(

@@ -10,6 +10,12 @@ data class DailyTotalRow(
     val count: Long,
 )
 
+data class MonthlyTotalRow(
+    val month: String,
+    val total: Long,
+    val count: Long,
+)
+
 data class SuggestionRow(
     val note: String,
     @ColumnInfo(name = "category_id") val categoryId: Long,

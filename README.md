@@ -51,8 +51,19 @@ tickets, PATCH for fixes. The version lives in `app/build.gradle.kts`.
 
 ## Receipt scanning
 
+Open Home → Add receipt to choose an image or use the system camera. Configure
+the API address, token, provider, model, and reasoning effort in Settings →
+Receipt scanner. Empty scan configuration fields use the API's defaults.
+Image controls stay disabled until an authenticated connection succeeds.
+Manual receipt entry works without a network connection.
+
+Scans use the `vision-api` job endpoint. WorkManager checks the saved job in
+the background, retains its result, and sends a completion notification when
+notifications are allowed. Tap it to review the receipt before saving. Android
+may delay background checks. Unsaved scan results also appear in Add receipt.
+
 The dev flavor reads `API_TOKEN` from `../vision-api/.env` during the Gradle
-build and sends receipt images to the private `vision-api` Tailscale route. The
-token is embedded in the dev APK, so keep that APK private and rotate the token
-if it is shared. The main flavor has no scanner token. Manual receipt entry
-works without a network connection.
+build and uses it as the initial scanner token. The token is embedded in the
+dev APK, so keep that APK private and rotate the token if it is shared. The
+main flavor starts with an empty token. Both flavors allow changing it in
+scanner settings, and retain separate Android data.
