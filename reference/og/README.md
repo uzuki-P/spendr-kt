@@ -5,14 +5,9 @@ private spending data). See `AGENTS.md` for the full emulator workflow.
 
 ## spendr-og-live-release.apk
 
-The OG React Native app, `com.spendr.app` ("Spendr"), live flavor,
-debug-signed. Built from the OG repo:
-
-```bash
-cd ~/projects/_sandbox/spendr/android && ./gradlew :app:assembleLiveRelease
-cp app/build/outputs/apk/live/release/app-live-release.apk \
-   reference/og/spendr-og-live-release.apk
-```
+The archived React Native app, `com.spendr.app` ("Spendr"), live flavor,
+debug-signed. Its source repository has been deleted, so keep this local APK
+if emulator comparison is needed.
 
 ## spendr_backup.zip
 

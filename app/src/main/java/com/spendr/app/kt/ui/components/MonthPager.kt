@@ -27,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatMonthYear
 import com.spendr.app.kt.domain.localDate
@@ -63,7 +62,7 @@ fun monthTabLabel(cursor: Long, nowCursor: Long): String {
 private val TAB_WIDTH = 132.dp
 
 /**
- * Month pager with scrolling month tabs + sliding 3 dp primary indicator,
+ * Month pager with scrolling month tabs + a sliding tonal pill indicator,
  * ported from RN `MonthPager` (tabs "This Month"/"Last Month"/"MMMM yyyy", no
  * future months). The selected tab is auto-centered like the RN `scrollTo`
  * behavior; static window — the picker covers longer jumps. [topContent] sits
@@ -113,34 +112,12 @@ fun MonthPager(
                 // size must be read OUTSIDE the scroll modifier to get the
                 // viewport width (the centering math depends on it)
                 .onSizeChanged { tabRowWidth = it.width }
-                .horizontalScroll(tabScroll),
+                .horizontalScroll(tabScroll)
+                .padding(vertical = 8.dp),
         ) {
-            Row(Modifier.fillMaxWidth()) {
-                months.forEachIndexed { index, cursor ->
-                    val selected = pagerState.currentPage == index
-                    Box(
-                        Modifier
-                            .width(TAB_WIDTH)
-                            .height(48.dp)
-                            .pressScale { onMonthChange(cursor) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            monthTabLabel(cursor, nowCursor).uppercase(),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-            // Indicator: 3dp pill-capped bar under the active tab (12dp inset).
-            // Lives INSIDE the scroll container so it moves with the tabs.
+            // Indicator: a tonal pill behind the active tab that follows the
+            // pager's fractional position, so it glides while swiping. Lives
+            // INSIDE the scroll container so it moves with the tabs.
             if (months.isNotEmpty()) {
                 val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
                 val index = position.toInt().coerceIn(0, months.size - 1)
@@ -149,20 +126,45 @@ fun MonthPager(
                 Box(Modifier.matchParentSize()) {
                     Box(
                         Modifier
-                            .align(Alignment.BottomStart)
                             .offset(x = leftDp)
                             .width(TAB_WIDTH)
-                            .padding(horizontal = 12.dp)
-                            .height(3.dp)
+                            .padding(horizontal = 6.dp)
+                            .height(40.dp)
                             .background(
-                                MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(topStart = 999.dp, topEnd = 999.dp),
+                                MaterialTheme.colorScheme.secondaryContainer,
+                                RoundedCornerShape(50),
                             ),
                     )
                 }
             }
+            Row(Modifier.fillMaxWidth()) {
+                months.forEachIndexed { index, cursor ->
+                    val selected = pagerState.currentPage == index
+                    Box(
+                        Modifier
+                            .width(TAB_WIDTH)
+                            .height(40.dp)
+                            .pressScale { onMonthChange(cursor) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            monthTabLabel(cursor, nowCursor),
+                            style = if (selected) {
+                                MaterialTheme.typography.labelLargeEmphasized
+                            } else {
+                                MaterialTheme.typography.labelLarge
+                            },
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
         }
-        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         topContent()
 

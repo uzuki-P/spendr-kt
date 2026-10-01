@@ -71,8 +71,7 @@ fun MonthYearPickerSheet(
                 }
                 Text(
                     browsedYear.toString(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmallEmphasized,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .weight(1f)
@@ -81,20 +80,10 @@ fun MonthYearPickerSheet(
                 BouncyIconButton(onClick = { browsedYear++ }, enabled = browsedYear < nowYear) {
                     MciIcon("chevron-right", 24.dp, MaterialTheme.colorScheme.primary)
                 }
-                // RN: THIS MONTH filled with primaryContainer, labelMedium 700
-                BouncySurface(
+                BouncyButton(
                     onClick = { onPick(monthCursor(System.currentTimeMillis())) },
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Text(
-                        "THIS MONTH",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                }
+                    height = androidx.compose.material3.ButtonDefaults.ExtraSmallContainerHeight,
+                ) { Text("This month") }
             }
             val currentMonth = YearMonth.from(localDate(System.currentTimeMillis()))
             // RN yearSwipe: fling left → next year, right → previous; next is
@@ -116,14 +105,15 @@ fun MonthYearPickerSheet(
                     }
                 },
             ) {
+                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+                val effects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
                 AnimatedContent(
                     targetState = browsedYear,
                     transitionSpec = {
-                        // RN year slide: grid slides 28dp in the travel direction, 220 ms
+                        // Year slide: the grid travels with an expressive spring
                         val direction = if (targetState > initialState) 1 else -1
-                        val slide = with(density) { 28.dp.roundToPx() }
-                        (slideInHorizontally(tween(220)) { direction * slide } + fadeIn(tween(220))) togetherWith
-                            (slideOutHorizontally(tween(220)) { -direction * slide } + fadeOut(tween(220)))
+                        (slideInHorizontally(spatial) { direction * it / 3 } + fadeIn(effects)) togetherWith
+                            (slideOutHorizontally(spatial) { -direction * it / 3 } + fadeOut(effects))
                     },
                     label = "yearSlide",
                 ) { year ->
@@ -138,7 +128,7 @@ fun MonthYearPickerSheet(
                                     val isFuture = year > nowYear ||
                                         (year == nowYear && monthIndex + 1 > currentMonth.monthValue)
                                     Box(Modifier.weight(1f).padding(4.dp)) {
-                                        BouncySurface(
+                                        MorphSurface(
                                             onClick = {
                                                 onPick(
                                                     monthCursor(
@@ -149,7 +139,9 @@ fun MonthYearPickerSheet(
                                                 )
                                             },
                                             enabled = !isFuture,
-                                            shape = MaterialTheme.shapes.medium,
+                                            // Picked month rounds into a pill; presses square off
+                                            corners = if (isSelected) Corners(28.dp) else Corners(16.dp),
+                                            pressedCorners = Corners(10.dp),
                                             color = when {
                                                 isSelected -> MaterialTheme.colorScheme.primary
                                                 isCurrent -> MaterialTheme.colorScheme.primaryContainer
@@ -163,8 +155,11 @@ fun MonthYearPickerSheet(
                                             Box(contentAlignment = Alignment.Center) {
                                                 Text(
                                                     monthShort(monthIndex),
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                    style = if (isSelected) {
+                                                        MaterialTheme.typography.titleSmallEmphasized
+                                                    } else {
+                                                        MaterialTheme.typography.titleSmall
+                                                    },
                                                     color = when {
                                                         isSelected -> MaterialTheme.colorScheme.onPrimary
                                                         isFuture -> com.spendr.app.kt.ui.theme.SpendrTheme.colors.textTertiary

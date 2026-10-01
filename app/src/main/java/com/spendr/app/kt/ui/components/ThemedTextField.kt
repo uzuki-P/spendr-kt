@@ -1,5 +1,7 @@
 package com.spendr.app.kt.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -22,8 +24,9 @@ import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
 /**
- * RN `ThemedTextInput`: labelMedium 600 label above, filled surfaceVariant
- * body with a 1dp border (primary while focused), radius.md, bodyLarge text.
+ * Filled rounded text field: label above, a tonal body with a hairline
+ * outline (so it reads on any container, dialogs included) that grows into
+ * an animated 2dp primary outline while focused.
  */
 @Composable
 fun ThemedTextField(
@@ -45,19 +48,29 @@ fun ThemedTextField(
         if (label != null) {
             Text(
                 label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                style = MaterialTheme.typography.labelLargeEmphasized,
+                color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
             )
         }
+        val borderWidth by animateDpAsState(
+            if (focused) 2.dp else 0.dp,
+            MaterialTheme.motionScheme.fastSpatialSpec(),
+            label = "fieldBorder",
+        )
+        val container by animateColorAsState(
+            if (focused) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+            MaterialTheme.motionScheme.fastEffectsSpec(),
+            label = "fieldColor",
+        )
         Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = BorderStroke(
-                1.dp,
-                if (focused) MaterialTheme.colorScheme.primary else SpendrTheme.colors.border,
-            ),
+            shape = MaterialTheme.shapes.large,
+            color = container,
+            border = if (borderWidth > 0.dp) {
+                BorderStroke(borderWidth, MaterialTheme.colorScheme.primary)
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            },
             modifier = Modifier.fillMaxWidth(),
         ) {
             BasicTextField(
@@ -72,7 +85,7 @@ fun ThemedTextField(
                 interactionSource = source,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
                 decorationBox = { inner ->
                     Box {
                         if (value.isEmpty() && placeholder != null) {

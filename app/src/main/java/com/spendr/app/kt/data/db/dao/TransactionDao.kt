@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.spendr.app.kt.data.db.entity.TransactionEntity
+import com.spendr.app.kt.data.db.entity.ReceiptItemEntity
 import com.spendr.app.kt.data.db.entity.TransactionWithCategoryRow
 import kotlinx.coroutines.flow.Flow
 
@@ -26,7 +27,7 @@ interface TransactionDao {
     fun observeTransactionsWithCategory(): Flow<List<TransactionWithCategoryRow>>
 
     @Transaction
-    @RawQuery(observedEntities = [TransactionEntity::class])
+    @RawQuery(observedEntities = [TransactionEntity::class, ReceiptItemEntity::class])
     fun observeTransactionsRaw(query: SupportSQLiteQuery): Flow<List<TransactionWithCategoryRow>>
 
     @Transaction

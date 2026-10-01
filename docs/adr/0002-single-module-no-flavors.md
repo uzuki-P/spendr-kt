@@ -1,6 +1,6 @@
 # ADR-0002: Single module, no product flavors
 
-Status: accepted
+Status: superseded by ADR-0009
 
 ## Context
 

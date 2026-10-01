@@ -1,19 +1,18 @@
 package com.spendr.app.kt.ui.transactions
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.data.db.entity.TransactionWithCategoryRow
@@ -21,15 +20,19 @@ import com.spendr.app.kt.domain.formatDayShort
 import com.spendr.app.kt.domain.formatDate
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.ui.components.CategoryIconBadge
-import com.spendr.app.kt.ui.components.pressScale
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.MorphSurface
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
+/** Peak alpha of the Home "just added" pulse; [TransactionRow] maps it to 0..1. */
+private const val PULSE_PEAK = 0.22f
+
 /**
- * Full-bleed transaction row, ported from RN `TransactionRow`: 42 dp category
- * circle, note title (w600), "category • merchant" meta, paid amount in
- * `expense` (primary) w700, "saved Rp X" in `savings` (tertiary).
+ * Transaction row as a segmented-list item: cookie category badge, note over
+ * "category • merchant • date", paidAmount in the expense color with a
+ * savings chip when discounted. Pass [corners] from `segmentCorners` so the
+ * row joins its group; the corners round out while pressed.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TransactionRow(
     row: TransactionWithCategoryRow,
@@ -39,105 +42,104 @@ fun TransactionRow(
     showDate: Boolean = true,
     showDayOfWeek: Boolean = false,
     highlight: Float = 0f,
+    corners: Corners = Corners(24.dp),
 ) {
     val tx = row.transaction
     val hasDiscount = (tx.discountAmount ?: 0) > 0
-    val source = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .pressScale(source)
-            .combinedClickable(
-                interactionSource = source,
-                indication = androidx.compose.material3.ripple(),
-                onClick = onClick ?: {},
-                onLongClick = onLongClick,
-            )
-            .pulseHighlight(highlight)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    val container = lerp(
+        MaterialTheme.colorScheme.surfaceContainer,
+        MaterialTheme.colorScheme.primaryContainer,
+        (highlight / PULSE_PEAK).coerceIn(0f, 1f),
+    )
+    MorphSurface(
+        onClick = onClick ?: {},
+        onLongClick = onLongClick,
+        corners = corners,
+        pressedCorners = Corners(28.dp),
+        color = container,
+        modifier = modifier.fillMaxWidth(),
     ) {
-        CategoryIconBadge(
-            icon = row.categoryIcon,
-            color = row.categoryColor,
-            size = 42.dp,
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = tx.note ?: row.categoryName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            CategoryIconBadge(
+                icon = row.categoryIcon,
+                color = row.categoryColor,
+                size = 44.dp,
             )
-            Text(
-                text = buildString {
-                    append(row.categoryName)
-                    tx.merchant?.let { append(" • ").append(it) }
-                    if (showDate) {
-                        append(" • ")
-                        append(if (showDayOfWeek) formatDayShort(tx.date) else formatDate(tx.date))
-                    }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            Text(
-                text = formatRupiah(tx.paidAmount),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = SpendrTheme.colors.expense,
-            )
-            if (hasDiscount) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 Text(
-                    text = "saved " + formatRupiah(tx.discountAmount!!),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = SpendrTheme.colors.savings,
+                    text = tx.note ?: row.categoryName,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    text = buildString {
+                        append(row.categoryName)
+                        tx.merchant?.let { append(" • ").append(it) }
+                        if (showDate) {
+                            append(" • ")
+                            append(if (showDayOfWeek) formatDayShort(tx.date) else formatDate(tx.date))
+                        }
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(
+                    text = formatRupiah(tx.paidAmount),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = SpendrTheme.colors.expense,
+                    maxLines = 1,
+                )
+                if (hasDiscount) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ) {
+                        Text(
+                            text = "saved " + formatRupiah(tx.discountAmount!!),
+                            style = MaterialTheme.typography.labelSmallEmphasized,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-@Composable
-private fun Modifier.pulseHighlight(alpha: Float): Modifier {
-    if (alpha <= 0f) return this
-    val color = MaterialTheme.colorScheme.primary
-    return this.then(
-        Modifier.drawBehind { drawRect(color.copy(alpha = alpha)) },
-    )
-}
-
-/** Day-group header: "EEE, d MMM" + group total, ported from RN list sections. */
+/** Day-group header: "EEE, d MMM" with the day's total, above a segmented group. */
 @Composable
 fun DayGroupHeader(label: String, total: Long, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleSmallEmphasized,
+            color = MaterialTheme.colorScheme.primary,
         )
         Text(
             formatRupiah(total),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelLargeEmphasized,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

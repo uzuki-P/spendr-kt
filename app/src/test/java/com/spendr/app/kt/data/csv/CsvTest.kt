@@ -76,12 +76,12 @@ class SpendrCsvTest {
     }
 
     @Test
-    fun `header matches the RN export format`() {
+    fun `header retains the original fields and adds receipt columns`() {
         val csv = SpendrCsv.serialize(listOf(sample))
         assertEquals(
             "Spendr Version,Transaction Date,Paid Amount,Original Amount,Discount Amount," +
                 "Discount Type,Category,Category Icon,Category Color,Note,Merchant,Tags," +
-                "Created At,Updated At",
+                "Created At,Updated At,Type,Receipt Items",
             csv.substringBefore("\r\n"),
         )
     }

@@ -1,7 +1,8 @@
 package com.spendr.app.kt.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -20,9 +21,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 
 /**
- * Floating scroll-position badge from the RN Transactions list: primaryContainer
- * pill with the day label, anchored at left 8dp / top 42% of the page, appears
- * instantly while scrolling and fades out over 180 ms after 1s idle.
+ * Floating scroll-position badge on the Transactions list: primaryContainer
+ * pill with the day label, anchored at left 8dp / top 42% of the page. It
+ * springs in while scrolling and shrinks away after 1s idle.
  */
 @Composable
 fun ScrollDateBadge(
@@ -33,18 +34,19 @@ fun ScrollDateBadge(
     Box(modifier = modifier.zIndex(2f)) {
         AnimatedVisibility(
             visible = visible && label != null,
-            // RN sets opacity to 1 instantly on scroll
-            enter = fadeIn(tween(0)),
-            exit = fadeOut(tween(180)),
+            enter = scaleIn(MaterialTheme.motionScheme.fastSpatialSpec(), initialScale = 0.6f) +
+                fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()),
+            exit = scaleOut(MaterialTheme.motionScheme.fastSpatialSpec(), targetScale = 0.8f) +
+                fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
                 modifier = Modifier
-                    .shadow(6.dp, RoundedCornerShape(16.dp))
+                    .shadow(6.dp, RoundedCornerShape(50))
                     .background(
                         MaterialTheme.colorScheme.primaryContainer,
-                        RoundedCornerShape(16.dp),
+                        RoundedCornerShape(50),
                     )
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {

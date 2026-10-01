@@ -1,5 +1,21 @@
 package com.spendr.app.kt.ui.quickadd
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.EmptyState
+import com.spendr.app.kt.ui.components.MorphSurface
+import com.spendr.app.kt.ui.components.SegmentGap
+import com.spendr.app.kt.ui.components.SegmentedGroup
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.rememberCollapsingBar
+import com.spendr.app.kt.ui.components.segmentCorners
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,8 +70,7 @@ import com.spendr.app.kt.ui.components.ThemedTextField
 import com.spendr.app.kt.ui.theme.SpendrTheme
 import kotlinx.coroutines.launch
 
-/** QuickAdd create/delete, ported from RN `QuickAddManageScreen` (no edit, no reorder). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** QuickAdd create/delete (no edit, no reorder). */
 @Composable
 fun QuickAddManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
@@ -63,76 +78,73 @@ fun QuickAddManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val categories by container.categories.observeCategories().collectAsState(initial = emptyList())
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow?>(null) }
+    val scrollBehavior = rememberCollapsingBar()
+    val listState = rememberLazyListState()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Quick Add", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = { SpendrTopBar(title = "Quick add", onBack = onBack, scrollBehavior = scrollBehavior) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { creating = true },
+                expanded = !listState.canScrollBackward,
+                icon = { MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer) },
+                text = { Text("New quick add") },
             )
         },
     ) { innerPadding ->
-        Column(
-            Modifier
-                .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.padding(innerPadding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 112.dp),
         ) {
-            BouncyTonalButton(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) {
-                MciIcon("plus", 18.dp, MaterialTheme.colorScheme.onSecondaryContainer)
-                Text("Add quick add", Modifier.padding(start = 8.dp))
-            }
-                if (quickAdds.isEmpty()) {
-                    Text(
-                        "No quick add yet. Create a quick add for fast input on Home.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (quickAdds.isEmpty()) {
+                item(key = "empty") {
+                    EmptyState(
+                        glyph = "lightning-bolt",
+                        title = "No quick add yet",
+                        message = "Create a quick add for fast input on Home.",
                     )
                 }
-                quickAdds.forEach { qa ->
-                    Card(
-                        shape = MaterialTheme.shapes.large,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ),
+            }
+            itemsIndexed(quickAdds, key = { _, qa -> qa.quickAdd.id }) { index, qa ->
+                MorphSurface(
+                    onClick = null,
+                    corners = segmentCorners(index, quickAdds.size),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem()
+                        .padding(bottom = SegmentGap),
+                ) {
+                    Row(
+                        Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Row(
-                            Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            CategoryIconBadge(icon = qa.categoryIcon, color = qa.categoryColor, size = 36.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    qa.quickAdd.label,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                Text(
-                                    qa.categoryName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            qa.quickAdd.paidAmount?.let {
-                                Text(
-                                    formatRupiah(it),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                            BouncyIconButton(onClick = { deleting = qa }) {
-                                Icon(Icons.Outlined.Close, contentDescription = "Remove ${qa.quickAdd.label}")
-                            }
+                        CategoryIconBadge(icon = qa.categoryIcon, color = qa.categoryColor, size = 44.dp)
+                        Column(Modifier.weight(1f)) {
+                            Text(qa.quickAdd.label, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                qa.categoryName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        qa.quickAdd.paidAmount?.let {
+                            Text(
+                                formatRupiah(it),
+                                style = MaterialTheme.typography.titleSmallEmphasized,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        BouncyIconButton(onClick = { deleting = qa }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Remove ${qa.quickAdd.label}")
                         }
                     }
                 }
+            }
         }
     }
 
@@ -199,8 +211,8 @@ private fun QuickAddCreateSheet(
         ) {
             Text(
                 "New quick add",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmallEmphasized,
+                modifier = Modifier.padding(start = 4.dp),
             )
             ThemedTextField(
                 value = label,
@@ -209,81 +221,72 @@ private fun QuickAddCreateSheet(
                 placeholder = "e.g., Coffee",
                 modifier = Modifier.fillMaxWidth(),
             )
-            // RN CategorySelectField (no chevron, no placeholder icon)
-            BouncySurface(
-                onClick = { showCategoryPicker = true },
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    SpendrTheme.colors.border,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                val selected = categories.firstOrNull { it.id == categoryId }
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    selected?.let {
-                        CategoryIconBadge(icon = it.icon, color = it.color, size = 42.dp)
-                    }
-                    Text(
-                        selected?.name ?: "Select category",
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (selected == null) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            Color.Unspecified
-                        },
-                    )
-                }
-            }
-            Column {
-                Text(
-                    "Amount (optional)",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-                )
-                // Tapping the field opens the keypad sheet (add-spending keypad grammar)
-                BouncySurface(
-                    onClick = { showAmountKeypad = true },
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        SpendrTheme.colors.border,
-                    ),
+            // Category + amount as one segmented group; amount opens the keypad sheet
+            val selected = categories.firstOrNull { it.id == categoryId }
+            SegmentedGroup {
+                MorphSurface(
+                    onClick = { showCategoryPicker = true },
+                    corners = segmentCorners(0, 2),
+                    pressedCorners = Corners(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        Modifier
-                            .padding(horizontal = 12.dp, vertical = 12.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp).heightIn(min = 44.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            if (paidAmount > 0) formatAmount(paidAmount) else "0",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (paidAmount > 0) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                SpendrTheme.colors.textTertiary
-                            },
-                        )
-                        Text(
-                            "Rp",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        if (selected != null) {
+                            CategoryIconBadge(icon = selected.icon, color = selected.color, size = 40.dp)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Category",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                selected?.name ?: "Select category",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = if (selected == null) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    Color.Unspecified
+                                },
+                            )
+                        }
+                        MciIcon("chevron-down", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                MorphSurface(
+                    onClick = { showAmountKeypad = true },
+                    corners = segmentCorners(1, 2),
+                    pressedCorners = Corners(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp).heightIn(min = 44.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Amount (optional)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "Rp " + if (paidAmount > 0) formatAmount(paidAmount) else "0",
+                                style = MaterialTheme.typography.titleMediumEmphasized,
+                                color = if (paidAmount > 0) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    SpendrTheme.colors.textTertiary
+                                },
+                            )
+                        }
+                        MciIcon("dialpad", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -295,9 +298,10 @@ private fun QuickAddCreateSheet(
                     }
                 },
                 enabled = label.isNotBlank() && categoryId != null,
+                height = ButtonDefaults.MediumContainerHeight,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(22.dp))
                 Text("Save", Modifier.padding(start = 8.dp))
             }
         }
@@ -337,41 +341,31 @@ private fun AmountKeypadSheet(
     onClear: () -> Unit,
     onClose: () -> Unit,
 ) {
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
+    val sheetState = androidx.compose.material3.rememberBottomSheetState(
+        initialValue = androidx.compose.material3.SheetValue.Hidden,
+        enabledValues = setOf(
+            androidx.compose.material3.SheetValue.Hidden,
+            androidx.compose.material3.SheetValue.Expanded,
+        ),
     )
     ModalBottomSheet(onDismissRequest = onClose, sheetState = sheetState) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Live "You pay"-style display so the amount stays visible while typing
-            Row(
-                Modifier
+            // Live amount so it stays visible while typing
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .fillMaxWidth()
-                    .border(1.5.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                    .fillMaxWidth(),
             ) {
-                Column {
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                    Text("Amount", style = MaterialTheme.typography.labelLargeEmphasized)
                     Text(
-                        "AMOUNT",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        if (paidAmount > 0) formatAmount(paidAmount) else "0",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        "Rp " + if (paidAmount > 0) formatAmount(paidAmount) else "0",
+                        style = MaterialTheme.typography.displaySmallEmphasized,
                     )
                 }
-                Text(
-                    "Rp",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
             AmountKeypad(
                 onDigit = onDigit,

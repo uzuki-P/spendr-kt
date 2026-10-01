@@ -6,6 +6,9 @@ import com.spendr.app.kt.data.repo.AUTO_CATEGORY_ICON
 import com.spendr.app.kt.data.repo.CATEGORY_PALETTE
 import com.spendr.app.kt.data.repo.CategoryRepository
 import com.spendr.app.kt.data.repo.TransactionRepository
+import com.spendr.app.kt.data.repo.ReceiptRepository
+import com.spendr.app.kt.data.repo.ReceiptInput
+import com.spendr.app.kt.data.repo.ReceiptItemInput
 import com.spendr.app.kt.domain.formatAmount
 import com.spendr.app.kt.domain.model.TransactionInput
 import java.util.Locale
@@ -30,6 +33,7 @@ class ImportExportRepository(
     private val transactions: TransactionRepository,
     private val categories: CategoryRepository,
 ) {
+    private val receipts = ReceiptRepository(db, transactions)
 
     // --- export ---
 
@@ -42,6 +46,17 @@ class ImportExportRepository(
         return when (format) {
             CsvFormat.SPENDR -> {
                 val records = ordered.map { row ->
+                    val receiptItems = if (row.transaction.type == "receipt") {
+                        org.json.JSONArray().apply {
+                            db.receiptItemDao().listForTransaction(row.transaction.id).forEach { item ->
+                                put(org.json.JSONObject().apply {
+                                    put("name", item.name)
+                                    put("paidAmount", item.paidAmount)
+                                    put("quantity", item.quantity)
+                                })
+                            }
+                        }.toString()
+                    } else ""
                     SpendrRecord(
                         version = SPENDR_CSV_VERSION,
                         date = row.transaction.date,
@@ -57,6 +72,8 @@ class ImportExportRepository(
                         tags = row.transaction.tags ?: "",
                         createdAt = row.transaction.createdAt,
                         updatedAt = row.transaction.updatedAt,
+                        type = row.transaction.type,
+                        receiptItems = receiptItems,
                     )
                 }
                 ExportResult(SpendrCsv.serialize(records), records.size)
@@ -113,14 +130,25 @@ class ImportExportRepository(
             return categoryList.firstOrNull()?.id
         }
 
+        data class Candidate(val input: TransactionInput, val key: String, val receipt: ReceiptInput? = null)
         val inputs = when (format) {
             CsvFormat.SPENDR -> SpendrCsv.parse(content).map { record ->
                 val categoryId = ensureCategory(record.categoryName, record.categoryIcon, record.categoryColor)
                     ?: return@map null
-                Triple(
+                val receipt = if (record.type == "receipt") {
+                    val items = try {
+                        val array = org.json.JSONArray(record.receiptItems.ifBlank { "[]" })
+                        (0 until array.length()).map { index ->
+                            val item = array.getJSONObject(index)
+                            ReceiptItemInput(item.getString("name"), item.getLong("paidAmount"), item.optString("quantity", "1"))
+                        }
+                    } catch (_: Exception) { return@map null }
+                    ReceiptInput(record.paidAmount, categoryId, record.merchant, record.note, record.date, items)
+                } else null
+                Candidate(
                     SpendrCsv.recordToInput(record, categoryId),
                     dedupeKey(record.date, record.paidAmount, record.note, record.categoryName),
-                    record.merchant,
+                    receipt,
                 )
             }
             CsvFormat.MONEY_LOVER -> MoneyLoverCsv.parse(content).map { record ->
@@ -131,7 +159,7 @@ class ImportExportRepository(
                 if (paid <= 0) return@map null
                 val categoryId = ensureCategory(record.category, null, null) ?: return@map null
                 val note = record.note.ifEmpty { null }
-                Triple(
+                Candidate(
                     TransactionInput(
                         paidAmount = paid,
                         originalAmount = null,
@@ -144,7 +172,6 @@ class ImportExportRepository(
                         date = dateMs,
                     ),
                     dedupeKey(dateMs, paid, record.note, record.category),
-                    null,
                 )
             }
         }
@@ -154,12 +181,12 @@ class ImportExportRepository(
                 skipped++
                 continue
             }
-            val (input, key, _) = entry
+            val (input, key, receipt) = entry
             if (!seen.add(key)) {
                 skipped++
                 continue
             }
-            transactions.insertTransaction(input)
+            if (receipt != null) receipts.save(receipt) else transactions.insertTransaction(input)
             added++
         }
         ImportResult(added, skipped, categoriesCreated)

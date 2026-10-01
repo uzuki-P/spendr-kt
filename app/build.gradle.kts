@@ -3,14 +3,13 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.spendr.app.kt"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.spendr.app.kt"
@@ -18,6 +17,33 @@ android {
         targetSdk = 36
         versionCode = 10
         versionName = "0.4.1"
+    }
+
+    val visionEnv = rootProject.file("../vision-api/.env")
+    val visionToken = if (visionEnv.isFile) {
+        visionEnv.readLines().firstOrNull { it.startsWith("API_TOKEN=") }
+            ?.substringAfter('=')?.trim()?.trim('"', '\'').orEmpty()
+    } else ""
+    fun quoted(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("mainApp") {
+            dimension = "distribution"
+            manifestPlaceholders["deepLinkScheme"] = "spendrkt"
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"spendrkt\"")
+            buildConfigField("String", "VISION_API_TOKEN", "\"\"")
+            buildConfigField("String", "VISION_API_URL", "\"\"")
+        }
+        create("dev") {
+            dimension = "distribution"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            manifestPlaceholders["deepLinkScheme"] = "spendrktdev"
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"spendrktdev\"")
+            buildConfigField("String", "VISION_API_TOKEN", quoted(visionToken))
+            buildConfigField("String", "VISION_API_URL", quoted("https://vision-api.ts.uzuki-p.my.id"))
+        }
     }
 
 // Release signing: a user-provided keystore via keystore.properties at the repo
@@ -58,20 +84,28 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        // The UI is built on the M3 Expressive components, which are
+        // still experimental; opt in once here instead of per call site.
+        freeCompilerArgs.addAll(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+        )
     }
 }
 

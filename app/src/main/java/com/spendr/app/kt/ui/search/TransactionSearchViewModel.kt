@@ -7,6 +7,7 @@ import com.spendr.app.kt.data.db.entity.TransactionWithCategoryRow
 import com.spendr.app.kt.data.repo.CategoryRepository
 import com.spendr.app.kt.data.repo.TransactionFilters
 import com.spendr.app.kt.data.repo.TransactionRepository
+import com.spendr.app.kt.data.repo.ReceiptRepository
 import com.spendr.app.kt.domain.formatDayShort
 import com.spendr.app.kt.domain.localDate
 import com.spendr.app.kt.domain.model.DateRange
@@ -35,6 +36,7 @@ enum class SearchRangeKey(val label: String, val months: Int?) {
 class TransactionSearchViewModel(
     private val repository: TransactionRepository,
     categoriesRepository: CategoryRepository? = null,
+    private val receipts: ReceiptRepository? = null,
 ) : ViewModel() {
 
     data class SearchFilters(
@@ -65,7 +67,10 @@ class TransactionSearchViewModel(
     /** Raw input as typed; [items] waits for the 500ms debounce (RN parity). */
     val searchText: StateFlow<String> = searchInput
     val committedSearch: StateFlow<String> = committedQuery
+    private val _matchingItems = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val matchingItems: StateFlow<Map<Long, String>> = _matchingItems
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val items: StateFlow<List<TransactionWithCategoryRow>> =
         combine(committedQuery, filters) { query, f -> query to f }
             .debounce(50)
@@ -77,7 +82,7 @@ class TransactionSearchViewModel(
                         categoryIds = f.categoryIds.takeIf { it.isNotEmpty() },
                         approximatePaidAmount = f.approximatePaidAmount,
                         approximatePaidAmountTolerance = f.approximatePaidAmount
-                            ?.let { maxOf(1000L, Math.round(it * 0.1).toLong()) },
+                            ?.let { maxOf(1000L, Math.round(it * 0.1)) },
                     ),
                 )
             }
@@ -92,6 +97,19 @@ class TransactionSearchViewModel(
         searchInput
             .debounce(500)
             .onEach { committedQuery.value = it.trim() }
+            .launchIn(viewModelScope)
+        combine(items, committedQuery) { rows, query -> rows to query }
+            .onEach { (rows, query) ->
+                _matchingItems.value = if (query.isBlank() || receipts == null) emptyMap() else {
+                    val matches = mutableMapOf<Long, String>()
+                    for (row in rows.filter { it.transaction.type == "receipt" }) {
+                        val match = receipts.items(row.transaction.id)
+                            .firstOrNull { it.name.contains(query, ignoreCase = true) }
+                        if (match != null) matches[row.transaction.id] = match.name
+                    }
+                    matches
+                }
+            }
             .launchIn(viewModelScope)
     }
 

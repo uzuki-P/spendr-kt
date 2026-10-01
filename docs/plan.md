@@ -1,9 +1,9 @@
 # Migration plan: Spendr (RN) → Spendr KT (Compose)
 
 Spendr is being rewritten as a native Android app in Kotlin + Jetpack Compose.
-The React Native app (kept at `~/projects/_sandbox/spendr`) is frozen for new
-features from now on; bug fixes only. Its docs, SQLite schema, CSV fixtures,
-and test fixtures are the source of truth this rewrite ports from.
+The React Native source repository has been deleted. This file records the
+original migration plan; current behavior lives in this repository's code and
+tests. Archived screenshots and an APK remain for comparison.
 
 ## Strategy
 
@@ -47,8 +47,7 @@ Blocked-by references ticket numbers in
    touches.
 2. Implement the ticket end to end. Keep slices vertical; do not build ahead
    for tickets that come later.
-3. Validate: `./gradlew :app:assembleDebug :app:lintDebug`, plus
-   `./gradlew :app:testDebugUnitTest` once the ticket adds tests. Installing on
+3. Validate both flavors with the commands in `AGENTS.md`. Installing on
    a device or emulator is the user's call, not the agent's.
 4. Tick the acceptance boxes in the ticket file and update the Status line.
 

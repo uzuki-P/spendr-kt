@@ -58,6 +58,7 @@ class TransactionsViewModel(
             ?: kotlinx.coroutines.flow.flowOf(emptyList()))
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val transactions: StateFlow<List<TransactionWithCategoryRow>> =
         combine(filters, committedSearch) { f, search -> f to search }
             .debounce(50)

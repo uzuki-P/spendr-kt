@@ -1,57 +1,34 @@
 package com.spendr.app.kt.ui.transactions
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.FilledTonalIconToggleButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -60,32 +37,41 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.spendr.app.kt.data.db.entity.CategoryEntity
 import com.spendr.app.kt.data.db.entity.TransactionWithCategoryRow
-import com.spendr.app.kt.domain.formatDate
 import com.spendr.app.kt.domain.formatDayShort
-import com.spendr.app.kt.domain.formatMonthYear
-import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.monthCursor
 import com.spendr.app.kt.domain.monthRange
-import com.spendr.app.kt.domain.model.DateRange
+import com.spendr.app.kt.ui.components.ActionRow
+import com.spendr.app.kt.ui.components.AnimatedAmount
 import com.spendr.app.kt.ui.components.BouncyButton
-import com.spendr.app.kt.ui.components.BouncyIconButton
-import com.spendr.app.kt.ui.components.BouncySurface
 import com.spendr.app.kt.ui.components.BouncyTextButton
 import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.CategoryMultiSelectSheet
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.EmptyState
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.MonthPager
+import com.spendr.app.kt.ui.components.MonthPillButton
 import com.spendr.app.kt.ui.components.MonthYearPickerSheet
-import com.spendr.app.kt.ui.components.monthPillLabel
-import com.spendr.app.kt.ui.components.monthWindow
+import com.spendr.app.kt.ui.components.MorphSurface
 import com.spendr.app.kt.ui.components.ScrollDateBadge
-import com.spendr.app.kt.ui.components.pressScale
+import com.spendr.app.kt.ui.components.SearchPill
+import com.spendr.app.kt.ui.components.SegmentGap
+import com.spendr.app.kt.ui.components.SegmentedGroup
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.monthWindow
+import com.spendr.app.kt.ui.components.rememberCollapsingBar
+import com.spendr.app.kt.ui.components.segmentCorners
 import com.spendr.app.kt.ui.theme.SpendrTheme
 
 private data class DayGroup(
@@ -142,7 +128,6 @@ private fun buildGroups(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
     viewModel: TransactionsViewModel,
@@ -156,6 +141,7 @@ fun TransactionsScreen(
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
+    val scrollBehavior = rememberCollapsingBar()
 
     var monthCursorState by remember { mutableStateOf(monthCursor(System.currentTimeMillis())) }
     val months = remember(monthCursorState) {
@@ -176,6 +162,7 @@ fun TransactionsScreen(
     if (deleteForRow != null) {
         AlertDialog(
             onDismissRequest = { deleteForRow = null },
+            icon = { MciIcon("trash-can-outline", 24.dp, MaterialTheme.colorScheme.error) },
             title = { Text("Delete transaction?") },
             text = { Text("This action cannot be undone.") },
             confirmButton = {
@@ -192,86 +179,50 @@ fun TransactionsScreen(
 
     actionForRow?.let { row ->
         ModalBottomSheet(onDismissRequest = { actionForRow = null }) {
-            Text(
-                row.transaction.note ?: row.categoryName,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            ListItem(
-                headlineContent = { Text("Edit") },
-                leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) },
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .pressScale {
+            Column(
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            ) {
+                Row(
+                    Modifier.padding(start = 4.dp, bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CategoryIconBadge(icon = row.categoryIcon, color = row.categoryColor, size = 44.dp)
+                    Text(
+                        row.transaction.note ?: row.categoryName,
+                        style = MaterialTheme.typography.titleLargeEmphasized,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                SegmentedGroup {
+                    ActionRow("pencil-outline", "Edit", segmentCorners(0, 3), onClick = {
                         actionForRow = null
                         onOpenEdit(row.transaction.id)
-                    },
-            )
-            ListItem(
-                headlineContent = { Text("Duplicate") },
-                leadingContent = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .pressScale {
+                    })
+                    ActionRow("content-copy", "Duplicate", segmentCorners(1, 3), onClick = {
                         actionForRow = null
                         onDuplicate(row.transaction.id)
-                    },
-            )
-            ListItem(
-                headlineContent = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                leadingContent = {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                },
-                modifier = Modifier
-                    .padding(start = 8.dp, end = 8.dp, bottom = 24.dp)
-                    .pressScale {
+                    })
+                    ActionRow("trash-can-outline", "Delete", segmentCorners(2, 3), destructive = true, onClick = {
                         actionForRow = null
                         deleteForRow = row
-                    },
-            )
+                    })
+                }
+            }
         }
     }
 
-    androidx.compose.material3.Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            TopAppBar(
-                title = { Text("Transactions", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            SpendrTopBar(
+                title = "Transactions",
+                onBack = onBack,
+                scrollBehavior = scrollBehavior,
                 // Month/year pill (same as Reports): jumps outside the tab window
-                actions = {
-                    BouncySurface(
-                        onClick = { showMonthPicker = true },
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.CalendarMonth,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                com.spendr.app.kt.ui.components.monthPillLabel(monthCursorState),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Icon(
-                                Icons.Outlined.ExpandMore,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                },
+                actions = { MonthPillButton(monthCursorState) { showMonthPicker = true } },
             )
         },
     ) { innerPadding ->
@@ -283,93 +234,34 @@ fun TransactionsScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
             topContent = {
-                // Pinned: search pill with inline query + filter count (RN SearchBar)
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                // Pinned: search pill with inline query + filter toggle
+                SearchPill(
+                    value = filterState.search,
+                    onValueChange = { value -> viewModel.setFilters { it.copy(search = value) } },
+                    placeholder = "Search transactions",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 ) {
-                    Row(
-                        Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    val active = filterState.activeCount > 0
+                    BadgedBox(
+                        badge = {
+                            if (active) Badge { Text(filterState.activeCount.toString()) }
+                        },
                     ) {
-                        Icon(
-                            Icons.Outlined.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        BasicTextField(
-                            value = filterState.search,
-                            onValueChange = { value -> viewModel.setFilters { it.copy(search = value) } },
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface,
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            singleLine = true,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(vertical = 12.dp),
-                            decorationBox = { inner ->
-                                Box {
-                                    if (filterState.search.isEmpty()) {
-                                        Text(
-                                            "Search transactions",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    inner()
-                                }
-                            },
-                        )
-                        if (filterState.search.isNotEmpty()) {
-                            BouncyIconButton(onClick = { viewModel.setFilters { it.copy(search = "") } }) {
-                                MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        Box {
-                            BouncySurface(
-                                onClick = { showFilters = true },
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                color = if (filterState.activeCount > 0) {
-                                    MaterialTheme.colorScheme.secondaryContainer
+                        FilledTonalIconToggleButton(
+                            checked = active,
+                            onCheckedChange = { showFilters = true },
+                            shapes = IconButtonDefaults.toggleableShapes(),
+                            modifier = Modifier.semantics { contentDescription = "Sort and filter" },
+                        ) {
+                            MciIcon(
+                                "tune-variant",
+                                22.dp,
+                                if (active) {
+                                    MaterialTheme.colorScheme.onSecondary
                                 } else {
-                                    androidx.compose.ui.graphics.Color.Transparent
+                                    MaterialTheme.colorScheme.onSecondaryContainer
                                 },
-                                modifier = Modifier.size(40.dp),
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    MciIcon(
-                                        "tune-variant",
-                                        24.dp,
-                                        if (filterState.activeCount > 0) {
-                                            MaterialTheme.colorScheme.onSecondaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                    )
-                                }
-                            }
-                            if (filterState.activeCount > 0) {
-                                Surface(
-                                    shape = androidx.compose.foundation.shape.CircleShape,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .align(Alignment.TopEnd),
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            filterState.activeCount.toString(),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                        )
-                                    }
-                                }
-                            }
+                            )
                         }
                     }
                 }
@@ -392,25 +284,21 @@ fun TransactionsScreen(
             }
 
             if (transactions.isEmpty()) {
-                Column(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
                     TransactionsSummaryCard(
                         monthTotal = 0L,
                         count = 0,
                         onOpenReports = onOpenReports,
                     )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(
-                            text = "No transactions match",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    EmptyState(
+                        glyph = "text-box-search-outline",
+                        title = "Nothing here",
+                        message = "No transactions match this month and filter.",
+                    )
                 }
             } else {
                 val listState = rememberLazyListState()
@@ -425,14 +313,14 @@ fun TransactionsScreen(
                 }
                 val badgeLabel = remember(listState.firstVisibleItemIndex, grouped) {
                     var current: String? = null
-                    for ((index, group) in grouped.withIndex()) {
-                        val headerIndex = grouped.take(index).sumOf { 1 + it.rows.size }
+                    var headerIndex = 1 // after the summary item
+                    for (group in grouped) {
                         if (listState.firstVisibleItemIndex >= headerIndex) current = group.label
+                        headerIndex += 1 + group.rows.size
                     }
                     current
                 }
-                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-                    // RN scrollDayBadge: absolute, left 8dp, top 42% of the page
+                BoxWithConstraints(Modifier.fillMaxSize()) {
                     ScrollDateBadge(
                         label = badgeLabel,
                         visible = badgeVisible,
@@ -441,7 +329,11 @@ fun TransactionsScreen(
                             .offset(y = maxHeight * 0.42f)
                             .padding(start = 8.dp),
                     )
-                    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(bottom = 32.dp),
+                    ) {
                         // Summary card scrolls away with the list (pinned above:
                         // app bar, month tabs, search + filter only)
                         item(key = "summary") {
@@ -453,14 +345,18 @@ fun TransactionsScreen(
                         }
                         grouped.forEach { group ->
                             item(key = "header-${group.key}") {
-                                DayGroupHeader(group.label, group.total)
+                                DayGroupHeader(group.label, group.total, Modifier.animateItem())
                             }
-                            items(group.rows, key = { it.transaction.id }) { row ->
+                            itemsIndexed(group.rows, key = { _, row -> row.transaction.id }) { index, row ->
                                 TransactionRow(
                                     row = row,
                                     onClick = { onOpenDetail(row.transaction.id) },
                                     showDate = false,
                                     onLongClick = { actionForRow = row },
+                                    corners = segmentCorners(index, group.rows.size),
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .padding(start = 16.dp, end = 16.dp, bottom = SegmentGap),
                                 )
                             }
                         }
@@ -482,66 +378,64 @@ fun TransactionsScreen(
     }
 }
 
-/** Month summary card: label, total, transaction count + Full report link. */
+/** Month summary: counting total, transaction count chip, Report button. */
 @Composable
 private fun TransactionsSummaryCard(
     monthTotal: Long,
     count: Int,
     onOpenReports: () -> Unit,
 ) {
-    Card(
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
+    Surface(
+        shape = MaterialTheme.shapes.extraLargeIncreased,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Column(
-            Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+            Modifier.padding(start = 24.dp, end = 16.dp, top = 20.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 "Total spending",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
             )
-            Text(
-                formatRupiah(monthTotal),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = SpendrTheme.colors.expense,
-                maxLines = 1,
+            AnimatedAmount(
+                amount = monthTotal,
+                style = MaterialTheme.typography.displaySmallEmphasized,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                Surface(
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
                 ) {
-                    MciIcon(
-                        "receipt-text-outline",
-                        18.dp,
-                        MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        count.toString() + " transaction" + if (count == 1) "" else "s",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        MciIcon("receipt-text-outline", 16.dp, MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            count.toString() + " transaction" + if (count == 1) "" else "s",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
-                BouncyTextButton(onClick = onOpenReports) {
-                    MciIcon("chart-line", 18.dp, MaterialTheme.colorScheme.primary)
-                    Text(
-                        "Full report",
-                        modifier = Modifier.padding(start = 4.dp),
-                    )
+                BouncyButton(
+                    onClick = onOpenReports,
+                    height = androidx.compose.material3.ButtonDefaults.ExtraSmallContainerHeight,
+                ) {
+                    MciIcon("chart-line", 16.dp, MaterialTheme.colorScheme.onPrimary)
+                    Text("Report", modifier = Modifier.padding(start = 6.dp))
                 }
             }
         }
@@ -551,11 +445,11 @@ private fun TransactionsSummaryCard(
 @Composable
 private fun FilterDialog(
     current: TransactionsViewModel.Filters,
-    categories: List<com.spendr.app.kt.data.db.entity.CategoryEntity>,
+    categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
     onApply: (TransactionsViewModel.Filters) -> Unit,
 ) {
-    var search by remember { mutableStateOf(current.search) }
+    val search = current.search
     var categoryIds by remember { mutableStateOf(current.categoryIds) }
     var discountOnly by remember { mutableStateOf(current.discountOnly) }
     var sortMode by remember { mutableStateOf(current.sortMode) }
@@ -563,94 +457,101 @@ private fun FilterDialog(
 
     val stagedChanged = categoryIds.isNotEmpty() || discountOnly || sortMode != SortMode.DATE_DESC
 
-    // RN Sort & filter: centered dialog, surfaceContainerHigh, radius 28
-    androidx.compose.ui.window.Dialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = MaterialTheme.shapes.extraLarge,
+            shape = MaterialTheme.shapes.extraLargeIncreased,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .fillMaxWidth(),
         ) {
-            Column(Modifier.padding(20.dp)) {
+            Column(Modifier.padding(24.dp)) {
                 Text(
                     "Sort & filter",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineSmallEmphasized,
                 )
                 Column(
                     Modifier
-                        .padding(top = 8.dp)
+                        .padding(top = 16.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    // Sort by: 4 pill tiles, selected label caption below
+                    // Sort by: connected button group, label of the pick below
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "Sort by",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortTile(SortMode.DATE_DESC == sortMode, "sort-calendar-descending", Modifier.weight(1f)) { sortMode = SortMode.DATE_DESC }
-                            SortTile(SortMode.DATE_ASC == sortMode, "sort-calendar-ascending", Modifier.weight(1f)) { sortMode = SortMode.DATE_ASC }
-                            SortTile(SortMode.AMOUNT_DESC == sortMode, "sort-numeric-descending", Modifier.weight(1f)) { sortMode = SortMode.AMOUNT_DESC }
-                            SortTile(SortMode.AMOUNT_ASC == sortMode, "sort-numeric-ascending", Modifier.weight(1f)) { sortMode = SortMode.AMOUNT_ASC }
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                        ) {
+                            SortMode.entries.forEachIndexed { index, mode ->
+                                ToggleButton(
+                                    checked = sortMode == mode,
+                                    onCheckedChange = { sortMode = mode },
+                                    shapes = when (index) {
+                                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                        SortMode.entries.size - 1 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .semantics { contentDescription = mode.label },
+                                ) {
+                                    MciIcon(
+                                        mode.glyph,
+                                        22.dp,
+                                        androidx.compose.material3.LocalContentColor.current,
+                                    )
+                                }
+                            }
                         }
-
                         Text(
                             sortMode.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .offset(y = (-8).dp),
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
 
-                    // Category: tappable field row opening the multi-select sheet
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Category",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        BouncySurface(
+                    // Category + discount-only as a two-row segmented group
+                    SegmentedGroup {
+                        MorphSurface(
                             onClick = { showCategoryPicker = true },
-                            shape = MaterialTheme.shapes.medium,
+                            corners = segmentCorners(0, 2, outer = 20.dp),
+                            pressedCorners = Corners(24.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerHighest,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                when {
-                                    categoryIds.isEmpty() -> MciIcon(
-                                        "shape-outline", 24.dp,
-                                        MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    categoryIds.size == 1 -> CategoryIconBadge(
-                                        icon = categories.firstOrNull { it.id == categoryIds[0] }?.icon ?: "shape-outline",
-                                        color = categories.firstOrNull { it.id == categoryIds[0] }?.color ?: "#888888",
-                                        size = 40.dp,
-                                    )
-                                    else -> MciIcon(
-                                        "shape-plus-outline", 24.dp,
-                                        MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                val single = categories.firstOrNull { it.id == categoryIds.singleOrNull() }
+                                if (single != null) {
+                                    CategoryIconBadge(icon = single.icon, color = single.color, size = 40.dp)
+                                } else {
+                                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                        MciIcon(
+                                            if (categoryIds.isEmpty()) "shape-outline" else "shape-plus-outline",
+                                            24.dp,
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         when {
                                             categoryIds.isEmpty() -> "All categories"
-                                            categoryIds.size == 1 ->
-                                                categories.firstOrNull { it.id == categoryIds[0] }?.name
-                                                    ?: "1 category"
+                                            single != null -> single.name
+                                            categoryIds.size == 1 -> "1 category"
                                             else -> "${categoryIds.size} categories"
                                         },
                                         style = MaterialTheme.typography.titleMedium,
@@ -668,27 +569,29 @@ private fun FilterDialog(
                                 MciIcon("chevron-right", 24.dp, MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                    }
-
-                    // Discount only: checkbox option row
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { discountOnly = !discountOnly }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                    ) {
-                        MciIcon(
-                            if (discountOnly) "checkbox-marked" else "checkbox-blank-outline",
-                            24.dp,
-                            if (discountOnly) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                        Text("Discount only", style = MaterialTheme.typography.titleMedium)
+                        MorphSurface(
+                            onClick = { discountOnly = !discountOnly },
+                            corners = segmentCorners(1, 2, outer = 20.dp),
+                            pressedCorners = Corners(24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                    MciIcon("sale-outline", 24.dp, SpendrTheme.colors.savings)
+                                }
+                                Text(
+                                    "Discount only",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Switch(checked = discountOnly, onCheckedChange = { discountOnly = it })
+                            }
+                        }
                     }
                 }
 
@@ -697,7 +600,7 @@ private fun FilterDialog(
                     Modifier
                         .fillMaxWidth()
                         .padding(top = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (stagedChanged) {
@@ -726,37 +629,5 @@ private fun FilterDialog(
             },
             onDismiss = { showCategoryPicker = false },
         )
-    }
-}
-
-/** RN sort pill tile: icon-only pill, selected = primaryContainer. */
-@Composable
-private fun SortTile(
-    selected: Boolean,
-    glyph: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    BouncySurface(
-        onClick = onClick,
-        shape = RoundedCornerShape(50),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHighest
-        },
-        modifier = modifier.height(48.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            MciIcon(
-                glyph,
-                24.dp,
-                if (selected) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-        }
     }
 }

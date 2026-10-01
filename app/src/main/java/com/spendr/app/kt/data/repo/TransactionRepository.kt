@@ -6,6 +6,7 @@ import com.spendr.app.kt.data.db.SpendrDatabase
 import com.spendr.app.kt.data.db.dao.SuggestionRow
 import com.spendr.app.kt.data.db.dao.TotalRow
 import com.spendr.app.kt.data.db.entity.TransactionEntity
+import com.spendr.app.kt.data.db.entity.ReceiptItemEntity
 import com.spendr.app.kt.data.db.entity.TransactionWithCategoryRow
 import com.spendr.app.kt.domain.model.DailyTotal
 import com.spendr.app.kt.domain.model.DateRange
@@ -102,6 +103,11 @@ class TransactionRepository(private val db: SpendrDatabase) {
         val newId = dao.insert(
             source.copy(id = 0, date = now, createdAt = now, updatedAt = now),
         )
+        if (source.type == "receipt") {
+            db.receiptItemDao().insertAll(
+                db.receiptItemDao().listForTransaction(id).map { it.copy(id = 0, transactionId = newId) },
+            )
+        }
         if (!source.note.isNullOrBlank()) recomputeNoteStats(source.note)
         newId
     }
@@ -212,8 +218,9 @@ class TransactionRepository(private val db: SpendrDatabase) {
         val search = filters.search?.trim()
         if (!search.isNullOrEmpty()) {
             // LOWER(...): search also matches the Category name, per RN listTransactions
-            conditions.add("(LOWER(t.note) LIKE ? OR LOWER(t.merchant) LIKE ? OR LOWER(c.name) LIKE ?)")
+            conditions.add("(LOWER(t.note) LIKE ? OR LOWER(t.merchant) LIKE ? OR LOWER(c.name) LIKE ? OR EXISTS (SELECT 1 FROM receipt_items ri WHERE ri.transaction_id = t.id AND LOWER(ri.name) LIKE ?))")
             val needle = "%" + search.lowercase() + "%"
+            args.add(needle)
             args.add(needle)
             args.add(needle)
             args.add(needle)

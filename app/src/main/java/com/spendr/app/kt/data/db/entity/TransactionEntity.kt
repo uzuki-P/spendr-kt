@@ -35,4 +35,5 @@ data class TransactionEntity(
     val date: Long,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(defaultValue = "'standard'") val type: String = "standard",
 )

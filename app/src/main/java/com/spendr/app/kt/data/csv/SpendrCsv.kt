@@ -20,12 +20,14 @@ data class SpendrRecord(
     val tags: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val type: String = "standard",
+    val receiptItems: String = "",
 )
 
 private val EXPORT_HEADER = listOf(
     "Spendr Version", "Transaction Date", "Paid Amount", "Original Amount",
     "Discount Amount", "Discount Type", "Category", "Category Icon",
-    "Category Color", "Note", "Merchant", "Tags", "Created At", "Updated At",
+    "Category Color", "Note", "Merchant", "Tags", "Created At", "Updated At", "Type", "Receipt Items",
 )
 
 private data class HeaderIndex(
@@ -43,6 +45,8 @@ private data class HeaderIndex(
     val tags: Int,
     val createdAt: Int,
     val updatedAt: Int,
+    val type: Int,
+    val receiptItems: Int,
 )
 
 object SpendrCsv {
@@ -67,6 +71,8 @@ object SpendrCsv {
                         r.tags,
                         r.createdAt.toString(),
                         r.updatedAt.toString(),
+                        r.type,
+                        r.receiptItems,
                     ),
                 )
             }
@@ -95,6 +101,8 @@ object SpendrCsv {
             tags = firstOf(header, "Tags"),
             createdAt = firstOf(header, "Created At", "createdAt"),
             updatedAt = firstOf(header, "Updated At", "updatedAt"),
+            type = firstOf(header, "Type"),
+            receiptItems = firstOf(header, "Receipt Items"),
         )
         val now = System.currentTimeMillis()
 
@@ -113,8 +121,8 @@ object SpendrCsv {
                 original = null
                 discountType = null
             } else {
-                if (original == null || original!! - paid != discount) {
-                    original = paid + discount!!
+                if (original == null || original - paid != discount) {
+                    original = paid + discount
                 }
                 if (discountType == null) discountType = "fixed"
             }
@@ -134,6 +142,8 @@ object SpendrCsv {
                 tags = CsvCodec.cell(row, idx.tags).trim(),
                 createdAt = parseInteger(CsvCodec.cell(row, idx.createdAt)) ?: now,
                 updatedAt = parseInteger(CsvCodec.cell(row, idx.updatedAt)) ?: now,
+                type = CsvCodec.cell(row, idx.type).trim().ifEmpty { "standard" },
+                receiptItems = CsvCodec.cell(row, idx.receiptItems),
             )
         }
     }

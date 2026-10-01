@@ -1,5 +1,10 @@
 package com.spendr.app.kt.ui.settings
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.spendr.app.kt.ui.components.SegmentedGroup
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.rememberCollapsingBar
+import com.spendr.app.kt.ui.components.segmentCorners
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -228,62 +233,56 @@ fun BackupRestoreScreen(container: AppContainer, onBack: () -> Unit = {}) {
         }
     }
 
+    val scrollBehavior = rememberCollapsingBar()
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Backup & restore", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = { SpendrTopBar(title = "Backup & restore", onBack = onBack, scrollBehavior = scrollBehavior) },
     ) { innerPadding ->
         Column(
             Modifier
                 .padding(innerPadding)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(start = 16.dp, end = 16.dp, bottom = 32.dp),
         ) {
             GroupLabel("Archive backup")
-            GroupCard {
+            SegmentedGroup {
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("folder-outline", "#2E7D32", 38.dp) },
+                    corners = segmentCorners(0, 5),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("folder-outline", "#2E7D32", 40.dp) },
                     title = "Backup folder",
                     subtitle = settings.backupDirectoryUri?.let { BackupStorage.describeBackupDirectory(it) }
                         ?: "Choose ${BackupStorage.DEFAULT_BACKUP_FOLDER_LABEL}",
                     onClick = { folderLauncher.launch(null) },
                 )
-                RowDivider()
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("backup-restore", "#1565C0", 38.dp) },
+                    corners = segmentCorners(1, 5),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("backup-restore", "#1565C0", 40.dp) },
                     title = "Automatic backup",
                     subtitle = frequencyLabel(settings),
                     onClick = { frequencyOpen = true },
                 )
-                RowDivider()
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("history", "#6A1B9A", 38.dp) },
+                    corners = segmentCorners(2, 5),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("history", "#6A1B9A", 40.dp) },
                     title = "Backup rotation",
                     subtitle = "Keep newest ${settings.backupRotation} archive" +
                         if (settings.backupRotation == 1) "" else "s",
                     onClick = { rotationOpen = true },
                 )
-                RowDivider()
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("content-save-outline", "#455A64", 38.dp) },
+                    corners = segmentCorners(3, 5),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("content-save-outline", "#455A64", 40.dp) },
                     title = "Back up now",
                     subtitle = settings.lastBackupAt?.let {
                         "Last backup " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(it))
                     } ?: "Create a complete Spendr archive",
                     onClick = { confirmBackupNow = true },
                 )
-                RowDivider()
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("database-import-outline", "#37474F", 38.dp) },
+                    corners = segmentCorners(4, 5),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("database-import-outline", "#37474F", 40.dp) },
                     title = "Restore backup",
                     subtitle = "Replace local data from a Spendr ZIP archive",
                     onClick = { restoreLauncher.launch(arrayOf("application/zip", "*/*")) },
@@ -291,16 +290,17 @@ fun BackupRestoreScreen(container: AppContainer, onBack: () -> Unit = {}) {
             }
 
             GroupLabel("CSV transfer")
-            GroupCard {
+            SegmentedGroup {
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("upload", "#E65100", 38.dp) },
+                    corners = segmentCorners(0, 2),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("upload", "#E65100", 40.dp) },
                     title = "Export CSV",
                     subtitle = "Spendr or Money Lover format",
                     onClick = { confirmExport = true },
                 )
-                RowDivider()
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("download", "#00838F", 38.dp) },
+                    corners = segmentCorners(1, 2),
+                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("download", "#00838F", 40.dp) },
                     title = "Import CSV",
                     subtitle = "Merge Spendr or Money Lover transactions",
                     onClick = { confirmImport = true },
@@ -312,7 +312,7 @@ fun BackupRestoreScreen(container: AppContainer, onBack: () -> Unit = {}) {
                     "(same day, amount, note, and category) are skipped.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp),
             )
         }
     }
@@ -454,92 +454,6 @@ private fun frequencyLabel(settings: Settings): String =
             "$name · keep ${settings.backupRotation}"
         }
     }
-
-/** Card container for grouped rows (RN ListGroup: radius 20, clipped). */
-@Composable
-private fun GroupCard(content: @Composable () -> Unit) {
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        content()
-    }
-}
-
-/** RN GroupLabel. */
-@Composable
-private fun GroupLabel(title: String, modifier: Modifier = Modifier) {
-    Text(
-        title.uppercase(),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
-    )
-}
-
-/** 1dp divider inset 16dp, between grouped rows. */
-@Composable
-private fun RowDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
-}
-
-/** RN ListItem row: 38dp badge, titleMedium 600 + bodySmall subtitle, chevron when pressable. */
-@Composable
-private fun SettingsRow(
-    title: String,
-    subtitle: String,
-    modifier: Modifier = Modifier,
-    icon: (@Composable () -> Unit)? = null,
-    onClick: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (onClick != null) {
-                    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    Modifier
-                        .pressScale(source)
-                        .clickable(
-                            interactionSource = source,
-                            indication = androidx.compose.material3.ripple(),
-                            onClick = onClick,
-                        )
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (icon != null) icon()
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (onClick != null) {
-            com.spendr.app.kt.ui.components.MciIcon(
-                "chevron-right",
-                22.dp,
-                MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
 /** Radio option list dialog (RN OptionRow dialogs: frequency, rotation). */
 @Composable

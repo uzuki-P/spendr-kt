@@ -5,6 +5,7 @@ import com.spendr.app.kt.data.db.SpendrDatabase
 import com.spendr.app.kt.data.db.entity.CategoryEntity
 import com.spendr.app.kt.data.db.entity.QuickAddEntity
 import com.spendr.app.kt.data.db.entity.TransactionEntity
+import com.spendr.app.kt.data.db.entity.ReceiptItemEntity
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.time.Instant
@@ -29,12 +30,13 @@ object BackupArchive {
 
     // --- encode ---
 
-    fun encode(manifest: JSONObject, categories: JSONArray, transactions: JSONArray, quickAdd: JSONArray): ByteArray {
+    fun encode(manifest: JSONObject, categories: JSONArray, transactions: JSONArray, quickAdd: JSONArray, receiptItems: JSONArray = JSONArray()): ByteArray {
         val backup = JSONObject().apply {
             put("manifest", manifest)
             put("categories", categories)
             put("transactions", transactions)
             put("quickAdd", quickAdd)
+            put("receiptItems", receiptItems)
         }
         val body = backup.toString().toByteArray(Charsets.UTF_8)
         val checksum = CRC32().apply { update(body) }
@@ -136,7 +138,26 @@ object BackupArchive {
         put("date", t.date)
         put("createdAt", t.createdAt)
         put("updatedAt", t.updatedAt)
+        put("type", t.type)
     }
+
+    fun receiptItemToJson(item: ReceiptItemEntity): JSONObject = JSONObject().apply {
+        put("id", item.id)
+        put("transactionId", item.transactionId)
+        put("name", item.name)
+        put("paidAmount", item.paidAmount)
+        put("quantity", item.quantity)
+        put("sortOrder", item.sortOrder)
+    }
+
+    fun receiptItemFromJson(o: JSONObject): ReceiptItemEntity = ReceiptItemEntity(
+        id = o.getLong("id"),
+        transactionId = o.getLong("transactionId"),
+        name = o.getString("name"),
+        paidAmount = o.getLong("paidAmount"),
+        quantity = o.optString("quantity", "1"),
+        sortOrder = o.optInt("sortOrder", 0),
+    )
 
     fun quickAddToJson(q: QuickAddEntity): JSONObject = JSONObject().apply {
         put("id", q.id)
@@ -173,6 +194,7 @@ object BackupArchive {
         date = o.getLong("date"),
         createdAt = o.getLong("createdAt"),
         updatedAt = o.getLong("updatedAt"),
+        type = o.optString("type", "standard"),
     )
 
     fun quickAddFromJson(o: JSONObject): QuickAddEntity = QuickAddEntity(
@@ -199,12 +221,14 @@ suspend fun createBackup(db: SpendrDatabase): Triple<String, ByteArray, Int> {
     val categories = db.categoryDao().list()
     val transactions = db.transactionDao().listAllForBackup()
     val quickAdds = db.quickAddDao().listForBackup()
+    val receiptItems = db.receiptItemDao().listAllForBackup()
 
     val manifest = BackupArchive.buildManifest(categories.size, transactions.size, quickAdds.size)
     val categoriesJson = JSONArray().apply { categories.forEach { put(BackupArchive.categoryToJson(it)) } }
     val transactionsJson = JSONArray().apply { transactions.forEach { put(BackupArchive.transactionToJson(it)) } }
     val quickAddJson = JSONArray().apply { quickAdds.forEach { put(BackupArchive.quickAddToJson(it)) } }
-    val bytes = BackupArchive.encode(manifest, categoriesJson, transactionsJson, quickAddJson)
+    val receiptItemsJson = JSONArray().apply { receiptItems.forEach { put(BackupArchive.receiptItemToJson(it)) } }
+    val bytes = BackupArchive.encode(manifest, categoriesJson, transactionsJson, quickAddJson, receiptItemsJson)
     return Triple(BackupArchive.archiveFileName(manifest.getLong("createdAt")), bytes, transactions.size)
 }
 
@@ -215,6 +239,7 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
     val categories = backup.getJSONArray("categories")
     val transactions = backup.getJSONArray("transactions")
     val quickAdds = backup.getJSONArray("quickAdd")
+    val receiptItems = backup.optJSONArray("receiptItems") ?: JSONArray()
 
     // Real RN databases can hold orphan rows (transactions whose category was
     // deleted while FK enforcement was off on that connection), and the RN
@@ -227,19 +252,20 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
         db.withTransaction {
         val sql = db.openHelper.writableDatabase
         sql.execSQL("DELETE FROM quick_add")
+        sql.execSQL("DELETE FROM receipt_items")
         sql.execSQL("DELETE FROM transactions")
         sql.execSQL("DELETE FROM note_stats")
         sql.execSQL("DELETE FROM merchants")
         sql.execSQL("DELETE FROM categories")
         sql.execSQL(
-            "DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'note_stats', 'merchants', 'quick_add', 'categories')",
+            "DELETE FROM sqlite_sequence WHERE name IN ('transactions', 'receipt_items', 'note_stats', 'merchants', 'quick_add', 'categories')",
         )
 
         for (i in 0 until categories.length()) {
             val c = BackupArchive.categoryFromJson(categories.getJSONObject(i))
             sql.execSQL(
                 "INSERT INTO categories (id, name, icon, color, sort_order, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arrayOf(c.id, c.name, c.icon, c.color, c.sortOrder, if (c.isDefault) 1L else 0L, c.createdAt, c.updatedAt),
+                arrayOf<Any?>(c.id, c.name, c.icon, c.color, c.sortOrder, if (c.isDefault) 1L else 0L, c.createdAt, c.updatedAt),
             )
         }
         for (i in 0 until transactions.length()) {
@@ -247,20 +273,27 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
             sql.execSQL(
                 """
                 INSERT INTO transactions (id, paid_amount, original_amount, discount_amount, discount_type,
-                    category_id, note, merchant, tags, date, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    category_id, note, merchant, tags, date, created_at, updated_at, type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
-                arrayOf(
+                arrayOf<Any?>(
                     t.id, t.paidAmount, t.originalAmount, t.discountAmount, t.discountType,
-                    t.categoryId, t.note, t.merchant, t.tags, t.date, t.createdAt, t.updatedAt,
+                    t.categoryId, t.note, t.merchant, t.tags, t.date, t.createdAt, t.updatedAt, t.type,
                 ),
+            )
+        }
+        for (i in 0 until receiptItems.length()) {
+            val item = BackupArchive.receiptItemFromJson(receiptItems.getJSONObject(i))
+            sql.execSQL(
+                "INSERT INTO receipt_items (id, transaction_id, name, paid_amount, quantity, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>(item.id, item.transactionId, item.name, item.paidAmount, item.quantity, item.sortOrder),
             )
         }
         for (i in 0 until quickAdds.length()) {
             val q = BackupArchive.quickAddFromJson(quickAdds.getJSONObject(i))
             sql.execSQL(
                 "INSERT INTO quick_add (id, label, category_id, note, paid_amount, merchant, tags, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arrayOf(q.id, q.label, q.categoryId, q.note, q.paidAmount, q.merchant, q.tags, q.sortOrder),
+                arrayOf<Any?>(q.id, q.label, q.categoryId, q.note, q.paidAmount, q.merchant, q.tags, q.sortOrder),
             )
         }
 

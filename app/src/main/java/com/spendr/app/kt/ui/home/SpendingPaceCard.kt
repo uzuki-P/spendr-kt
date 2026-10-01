@@ -1,8 +1,17 @@
 package com.spendr.app.kt.ui.home
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.drawscope.clipRect
+import com.spendr.app.kt.ui.components.AnimatedAmount
+import com.spendr.app.kt.ui.components.BouncyButton
+import com.spendr.app.kt.ui.components.EmphasizedDecelerate
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -14,8 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,9 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.spendr.app.kt.LocalVibrate
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.ui.components.MciIcon
-import com.spendr.app.kt.ui.components.pressScale
 import com.spendr.app.kt.ui.home.HomeViewModel.PaceData
-import com.spendr.app.kt.ui.theme.SpendrTheme
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -57,10 +62,10 @@ import kotlin.math.roundToInt
 private const val MILLION = 1_000_000L
 
 /**
- * Month-to-date cumulative paidAmount against the 3-month average, ported 1:1
- * from RN `SpendingPaceCard`: Card with a primaryContainer header (label,
- * headline value, 3-mo avg row, Full report) and the chart on the card surface
- * (gradient area fill, dashed average, scrub with haptics, today line).
+ * Month-to-date cumulative paidAmount against the 3-month average: one tonal
+ * primaryContainer hero with a counting headline, a compact "Report" button,
+ * and the scrubbable chart (gradient area, dashed average, haptic scrub) that
+ * draws itself in from the left when it first appears.
  */
 @Composable
 fun SpendingPaceCard(
@@ -89,108 +94,100 @@ fun SpendingPaceCard(
         idx > todayIndex -> "Day ${idx + 1} · ${pace.monthLabel}"
         else -> "Through day ${idx + 1} · ${pace.monthLabel}"
     }
-    val headerValue = if (hasData && idx <= todayIndex) formatRupiah(pace.thisMonth[idx]) else "—"
     val headerAvg = if (pace.hasRealAverage) formatRupiah(avgShown.getOrElse(clampedAvgIdx) { 0 }) else null
 
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-        ),
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(hasData) {
+        if (hasData) reveal.animateTo(1f, tween(1100, easing = EmphasizedDecelerate))
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.extraLargeIncreased,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = onContainer,
         modifier = modifier.fillMaxWidth(),
     ) {
-        // Header on primaryContainer
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+        Column(Modifier.padding(top = 16.dp, bottom = 12.dp)) {
+            // Label + Report on one line so the amount gets the full width
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    headerLabel.uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
+                    headerLabel,
+                    style = MaterialTheme.typography.labelLarge,
                     color = onContainerMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                BouncyButton(
+                    onClick = onOpenReport,
+                    height = ButtonDefaults.ExtraSmallContainerHeight,
+                ) {
+                    MciIcon("chart-line", 16.dp, MaterialTheme.colorScheme.onPrimary)
+                    Text("Report", modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+            val valueStyle = MaterialTheme.typography.displaySmallEmphasized
+            val valueModifier = Modifier.padding(horizontal = 20.dp)
+            when {
+                !hasData || idx > todayIndex -> Text("—", style = valueStyle, maxLines = 1, modifier = valueModifier)
+                idx == todayIndex -> AnimatedAmount(
+                    amount = pace.thisMonth[idx],
+                    style = valueStyle,
+                    color = onContainer,
+                    modifier = valueModifier,
+                )
+                else -> Text(formatRupiah(pace.thisMonth[idx]), style = valueStyle, maxLines = 1, modifier = valueModifier)
+            }
+            Row(
+                Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    Modifier
+                        .width(14.dp)
+                        .height(3.dp)
+                        .background(onContainerFaint, RoundedCornerShape(50)),
                 )
                 Text(
-                    headerValue,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = onContainer,
+                    "3-mo avg",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = onContainerMuted,
+                )
+                Text(
+                    headerAvg ?: "Not enough history",
+                    style = MaterialTheme.typography.labelMediumEmphasized,
+                    color = if (pace.hasRealAverage) onContainer else onContainerFaint,
                     maxLines = 1,
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Box(
-                        Modifier
-                            .width(12.dp)
-                            .height(2.dp)
-                            .background(onContainerFaint),
-                    )
-                    Text(
-                        "3-mo avg",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = onContainerMuted,
-                    )
-                    Text(
-                        headerAvg ?: "Not enough history",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (pace.hasRealAverage) onContainer else onContainerFaint,
-                        maxLines = 1,
-                    )
-                }
             }
-            Box(
-                modifier = Modifier
-                    .pressScale(onClick = onOpenReport)
-                    .padding(8.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    MciIcon("chart-line", 18.dp, onContainer)
-                    Text(
-                        "Full report",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = onContainer,
-                    )
-                }
-            }
-        }
 
-        // Chart body on the card surface
-        PaceChart(
-            pace = pace,
-            avgShown = avgShown,
-            scrubIndex = idx,
-            todayIndex = todayIndex,
-            onScrub = { newIdx ->
-                if (newIdx != idx) {
-                    scrubIndex = newIdx
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    vibrate()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-                .height(124.dp)
-                .semantics { contentDescription = "Spending pace chart" },
-        )
+            PaceChart(
+                pace = pace,
+                avgShown = avgShown,
+                scrubIndex = idx,
+                todayIndex = todayIndex,
+                reveal = reveal.value,
+                onScrub = { newIdx ->
+                    if (newIdx != idx) {
+                        scrubIndex = newIdx
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        vibrate()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .height(132.dp)
+                    .semantics { contentDescription = "Spending pace chart" },
+            )
+        }
     }
 }
 
@@ -200,14 +197,16 @@ private fun PaceChart(
     avgShown: List<Long>,
     scrubIndex: Int,
     todayIndex: Int,
+    reveal: Float,
     onScrub: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
-    val tertiaryColor = SpendrTheme.colors.textTertiary
-    val borderColor = SpendrTheme.colors.border
-    val overlayColor = SpendrTheme.colors.overlay
-    val surfaceColor = MaterialTheme.colorScheme.surface
+    val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val tertiaryColor = onContainer.copy(alpha = 0.55f)
+    val borderColor = onContainer.copy(alpha = 0.12f)
+    val overlayColor = onContainer.copy(alpha = 0.2f)
+    val surfaceColor = MaterialTheme.colorScheme.primaryContainer
     val density = LocalDensity.current
     val labelPx = with(density) { 10.sp.toPx() }
 
@@ -287,8 +286,8 @@ private fun PaceChart(
             drawLine(overlayColor, Offset(xFor(todayIndex), 0f), Offset(xFor(todayIndex), plotHeight), 1f)
         }
 
-        // Area fill with vertical gradient 0.24 -> 0.01
-        if (pace.thisMonth.size >= 2) {
+        // Area fill with vertical gradient, revealed left to right on entry
+        if (pace.thisMonth.size >= 2) clipRect(right = plotWidth * reveal) {
             val path = monotonePath(pace.thisMonth, ::xFor, ::yFor)
             val area = Path().apply {
                 addPath(path)
@@ -299,8 +298,8 @@ private fun PaceChart(
             drawPath(
                 area,
                 brush = Brush.verticalGradient(
-                    0f to primaryColor.copy(alpha = 0.24f),
-                    1f to primaryColor.copy(alpha = 0.01f),
+                    0f to primaryColor.copy(alpha = 0.32f),
+                    1f to primaryColor.copy(alpha = 0.02f),
                     startY = 0f,
                     endY = plotHeight,
                 ),
@@ -321,12 +320,12 @@ private fun PaceChart(
             drawPath(
                 path,
                 color = primaryColor,
-                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
+                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
             )
         }
 
         // Scrub indicators
-        if (hasData && scrubIndex in 0 until n) {
+        if (hasData && reveal >= 1f && scrubIndex in 0 until n) {
             val x = xFor(scrubIndex)
             // RN scrub guideline: 1.5dp, primary at opacity 0.4
             drawLine(primaryColor.copy(alpha = 0.4f), Offset(x, 0f), Offset(x, plotHeight), 1.5f)
@@ -338,8 +337,8 @@ private fun PaceChart(
             val primaryValue = pace.thisMonth.getOrNull(min(scrubIndex, pace.thisMonth.size - 1))
             if (primaryValue != null) {
                 // RN scrubDot: 12dp circle, 2.5dp surface border, primary fill
-                drawCircle(surfaceColor, 6.dp.toPx(), Offset(x, yFor(primaryValue)))
-                drawCircle(primaryColor, 3.5.dp.toPx(), Offset(x, yFor(primaryValue)))
+                drawCircle(surfaceColor, 7.dp.toPx(), Offset(x, yFor(primaryValue)))
+                drawCircle(primaryColor, 4.5.dp.toPx(), Offset(x, yFor(primaryValue)))
             }
         }
 
