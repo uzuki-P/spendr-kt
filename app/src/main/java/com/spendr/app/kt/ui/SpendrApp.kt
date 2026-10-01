@@ -1,13 +1,19 @@
 package com.spendr.app.kt.ui
 
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
+import androidx.navigation.NavBackStackEntry
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,19 +82,14 @@ object Routes {
 }
 
 /**
- * OG native-stack motion, ported from React Navigation's `fade_from_bottom` /
- * `fade_to_bottom` (the Android Nougat activity open/close anims that
- * react-native-screens replays; see its res/anim XMLs):
- *
- * - push in:  alpha 0→1 over 210ms + rise from 8% over 350ms, both
- *   decelerate-quint
- * - push out: the covered screen holds still and fully opaque for 350ms
- * - pop out:  sink to 8% over 250ms accelerate-quint + alpha 1→0 over 150ms
- *   after a 100ms delay, linear
- * - pop in:   the revealed screen appears instantly and holds still
+ * M3 Expressive navigation motion: a shared-axis X transition driven by the
+ * theme's expressive springs. The incoming screen slides a quarter width and
+ * fades in; the covered screen drifts back and dims. Creation flows (Add,
+ * Receipt) rise from the bottom instead, like a sheet. Pops play the same
+ * choreography in reverse, which also drives the predictive-back preview.
  */
-private val DecelerateQuint = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
-private val AccelerateQuint = CubicBezierEasing(0.64f, 0f, 0.78f, 0f)
+private const val SLIDE_DIVISOR = 4
+private const val DRIFT_DIVISOR = 10
 
 @Composable
 fun SpendrApp(container: AppContainer) {
@@ -106,26 +107,50 @@ fun SpendrApp(container: AppContainer) {
         }
     }
 
+    val motion = MaterialTheme.motionScheme
+    val spatial = motion.defaultSpatialSpec<IntOffset>()
+    val fastEffects = motion.fastEffectsSpec<Float>()
+    val effects = motion.defaultEffectsSpec<Float>()
+    val sheetRoutes = setOf(Routes.ADD, Routes.RECEIPT)
+    fun AnimatedContentTransitionScope<NavBackStackEntry>.isSheet(entry: NavBackStackEntry) =
+        entry.destination.route in sheetRoutes
+
     NavHost(
         navController = navController,
         startDestination = Routes.HOME,
-        // Fade-and-rise push / fade-and-sink pop, matching the OG's native
-        // stack (see the animation docs above).
+        // Opaque theme surface behind every screen: while two screens
+        // cross-fade, this shows through instead of the window's splash color.
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
         enterTransition = {
-            fadeIn(tween(210, easing = DecelerateQuint)) +
-                slideInVertically(tween(350, easing = DecelerateQuint)) { it * 8 / 100 }
+            if (isSheet(targetState)) {
+                slideInVertically(spatial) { it / SLIDE_DIVISOR } + fadeIn(effects)
+            } else {
+                slideInHorizontally(spatial) { it / SLIDE_DIVISOR } + fadeIn(effects)
+            }
         },
         exitTransition = {
-            // Hold the covered screen still and opaque while the new one
-            // fades in above it (the native "no animation" pair).
-            fadeOut(snap(delayMillis = 350))
+            if (isSheet(targetState)) {
+                fadeOut(fastEffects, targetAlpha = 0.6f)
+            } else {
+                slideOutHorizontally(spatial) { -it / DRIFT_DIVISOR } + fadeOut(fastEffects)
+            }
         },
         popEnterTransition = {
-            fadeIn(snap())
+            if (isSheet(initialState)) {
+                fadeIn(fastEffects, initialAlpha = 0.6f)
+            } else {
+                slideInHorizontally(spatial) { -it / DRIFT_DIVISOR } + fadeIn(effects)
+            }
         },
         popExitTransition = {
-            fadeOut(tween(150, delayMillis = 100, easing = LinearEasing)) +
-                slideOutVertically(tween(250, easing = AccelerateQuint)) { it * 8 / 100 }
+            if (isSheet(initialState)) {
+                slideOutVertically(spatial) { it / SLIDE_DIVISOR } + fadeOut(fastEffects)
+            } else {
+                slideOutHorizontally(spatial) { it / SLIDE_DIVISOR } +
+                    scaleOut(motion.defaultSpatialSpec(), targetScale = 0.94f) + fadeOut(fastEffects)
+            }
         },
     ) {
             composable(Routes.HOME) {

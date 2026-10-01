@@ -4,7 +4,12 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
+import androidx.room.RoomWarnings
 
+// No index on category_id on purpose: quick_add holds a handful of rows, so
+// the scan Room warns about (on category delete/update) costs nothing, and an
+// index would need a schema migration for no measurable gain.
+@SuppressWarnings(RoomWarnings.MISSING_INDEX_ON_FOREIGN_KEY_CHILD)
 @Entity(
     tableName = "quick_add",
     foreignKeys = [

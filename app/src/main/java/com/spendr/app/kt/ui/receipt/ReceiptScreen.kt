@@ -1,5 +1,19 @@
 package com.spendr.app.kt.ui.receipt
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LoadingIndicator
+import com.spendr.app.kt.ui.components.BouncyOutlinedButton
+import com.spendr.app.kt.ui.components.BouncyTextButton
+import com.spendr.app.kt.ui.components.BouncyTonalButton
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.MorphSurface
+import com.spendr.app.kt.ui.components.SegmentedGroup
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.segmentCorners
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
@@ -187,24 +201,20 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
         }
     }
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            TopAppBar(
-                title = { Text(if (transactionId == null) "Add receipt" else "Edit receipt", fontWeight = FontWeight.Bold) },
-                navigationIcon = { BouncyIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            )
+            SpendrTopBar(title = if (transactionId == null) "Add receipt" else "Edit receipt", onBack = onBack)
         },
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.surface) {
-                Column {
-                    HorizontalDivider(color = SpendrTheme.colors.border)
+                Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
                     BouncyButton(
                         onClick = ::saveReceipt,
                         enabled = !busy && amount > 0 && merchant.isNotBlank() && categoryId != null,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
+                        height = androidx.compose.material3.ButtonDefaults.MediumContainerHeight,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     ) {
-                        MciIcon("check", 18.dp, MaterialTheme.colorScheme.onPrimary)
+                        MciIcon("check", 22.dp, MaterialTheme.colorScheme.onPrimary)
                         Text(if (transactionId == null) "Save receipt" else "Save changes", Modifier.padding(start = 8.dp))
                     }
                 }
@@ -215,9 +225,13 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Total paid", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Surface(
+                shape = MaterialTheme.shapes.extraLargeIncreased,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Total paid", style = MaterialTheme.typography.labelLargeEmphasized)
                     ReceiptField(
                         value = paidAmount,
                         onValueChange = { paidAmount = it.filter(Char::isDigit) },
@@ -226,17 +240,26 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                         prefix = "Rp",
                         large = true,
                     )
-                    Text("Enter the amount you paid, including any rounding.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Enter the amount you paid, including any rounding.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                    )
                 }
             }
             if (BuildConfig.VISION_API_TOKEN.isNotBlank()) {
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MciIcon("receipt-text-outline", 22.dp, MaterialTheme.colorScheme.primary)
-                            Text("Scan receipt", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            MciIcon("line-scan", 24.dp, MaterialTheme.colorScheme.onSecondaryContainer)
+                            Text("Scan receipt", style = MaterialTheme.typography.titleMediumEmphasized)
                         }
-                        Text("Fill the merchant, total, and items from a photo. Review them before saving.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Fill the merchant, total, and items from a photo. Review them before saving.", style = MaterialTheme.typography.bodyMedium)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             BouncyButton(onClick = {
                         try {
@@ -253,14 +276,14 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                             scanError = e.message ?: "Could not open the camera."
                         }
                             }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Take photo") }
-                            OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy, modifier = Modifier.weight(1f)) {
+                            BouncyOutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy, modifier = Modifier.weight(1f)) {
                                 Text("Choose image")
                             }
                         }
                         if (busy) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Text("Reading receipt…", style = MaterialTheme.typography.bodyMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                LoadingIndicator(modifier = Modifier.size(40.dp))
+                                Text("Reading receipt…", style = MaterialTheme.typography.bodyLargeEmphasized)
                             }
                         }
                         scanError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
@@ -268,54 +291,66 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                 }
             }
             ReceiptLabeledField("Merchant", "e.g., Indomaret", merchant, { merchant = it })
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                ReceiptLabel("Date")
-                BouncySurface(
+            val selectedCategory = categories.firstOrNull { it.id == categoryId }
+            SegmentedGroup {
+                MorphSurface(
                     onClick = { showDatePicker = true },
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    border = BorderStroke(1.dp, SpendrTheme.colors.border),
+                    corners = segmentCorners(0, 2),
+                    pressedCorners = Corners(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MciIcon("calendar-blank-outline", 20.dp, MaterialTheme.colorScheme.primary)
-                        Text(formatFullDate(date), style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        MciIcon("calendar-blank-outline", 22.dp, MaterialTheme.colorScheme.primary)
+                        Text(formatFullDate(date), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        MciIcon("chevron-right", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-            }
-            val selectedCategory = categories.firstOrNull { it.id == categoryId }
-            BouncySurface(
-                onClick = { showCategories = true },
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                border = BorderStroke(1.dp, SpendrTheme.colors.border),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (selectedCategory != null) CategoryIconBadge(selectedCategory.icon, selectedCategory.color, 42.dp)
-                    Text(selectedCategory?.name ?: "Select category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    MciIcon("chevron-down", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                MorphSurface(
+                    onClick = { showCategories = true },
+                    corners = segmentCorners(1, 2),
+                    pressedCorners = Corners(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp).heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (selectedCategory != null) {
+                            CategoryIconBadge(selectedCategory.icon, selectedCategory.color, 40.dp)
+                        } else {
+                            MciIcon("shape-outline", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            selectedCategory?.name ?: "Select category",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (selectedCategory == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        MciIcon("chevron-down", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
             ReceiptLabeledField("Note (optional)", "What was this for?", note, { note = it })
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Items", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                TextButton(onClick = { items.add(ItemDraft()) }) {
-                    MciIcon("plus", 18.dp, MaterialTheme.colorScheme.primary)
+                Text("Items", style = MaterialTheme.typography.titleLargeEmphasized, modifier = Modifier.padding(start = 4.dp))
+                BouncyTonalButton(onClick = { items.add(ItemDraft()) }, height = ButtonDefaults.ExtraSmallContainerHeight) {
+                    MciIcon("plus", 18.dp, MaterialTheme.colorScheme.onSecondaryContainer)
                     Text("Add item", Modifier.padding(start = 4.dp))
                 }
             }
             if (items.isEmpty()) {
-                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer) {
                     Text("No items yet. Scan a receipt or add them by hand.", Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             items.forEachIndexed { index, item ->
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Item ${index + 1}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick = { items.removeAt(index) }) { Text("Remove") }
+                        Text("Item ${index + 1}", style = MaterialTheme.typography.labelLargeEmphasized, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 4.dp))
+                        BouncyTextButton(
+                            onClick = { items.removeAt(index) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) { Text("Remove") }
                     }
                     ReceiptField(item.name, { items[index] = item.copy(name = it) }, "Item name")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -342,12 +377,16 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
                 }
                 }
             }
-            Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            ) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReceiptSummaryRow("Items total", formatRupiah(itemTotal))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
                     ReceiptSummaryRow(if (amount >= itemTotal) "Unallocated" else "Items exceed total", formatRupiah(kotlin.math.abs(amount - itemTotal)))
-                    Text("Only total paid counts in reports.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Only total paid counts in reports.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.72f))
                 }
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -359,10 +398,9 @@ fun ReceiptScreen(container: AppContainer, transactionId: Long?, onDone: (Long) 
 private fun ReceiptLabel(label: String) {
     Text(
         label,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.labelLargeEmphasized,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
     )
 }
 
@@ -389,23 +427,33 @@ private fun ReceiptField(
     TextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = { Text(placeholder) },
-        prefix = prefix?.let { { Text(it) } },
+        placeholder = { Text(placeholder, style = if (large) MaterialTheme.typography.headlineMediumEmphasized else MaterialTheme.typography.bodyLarge) },
+        prefix = prefix?.let {
+            {
+                Text(
+                    it,
+                    style = if (large) MaterialTheme.typography.titleLargeEmphasized else MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(end = 6.dp),
+                )
+            }
+        },
         keyboardOptions = keyboardOptions,
         singleLine = true,
-        textStyle = if (large) MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyLarge,
-        shape = MaterialTheme.shapes.medium,
+        textStyle = if (large) MaterialTheme.typography.headlineMediumEmphasized else MaterialTheme.typography.bodyLarge,
+        shape = MaterialTheme.shapes.large,
         interactionSource = interaction,
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor = if (large) MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.surfaceContainerHighest,
+            unfocusedContainerColor = if (large) {
+                MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.7f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
         ),
-        modifier = modifier.fillMaxWidth().border(
-            1.dp,
-            if (focused) MaterialTheme.colorScheme.primary else SpendrTheme.colors.border,
-            MaterialTheme.shapes.medium,
+        modifier = modifier.fillMaxWidth().then(
+            if (focused) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large) else Modifier,
         ),
     )
 }

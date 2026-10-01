@@ -1,20 +1,26 @@
 package com.spendr.app.kt.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamicColorScheme
@@ -41,13 +47,21 @@ val PRESET_SEEDS = listOf(
     "#546E7A", "#757575", "#212121",
 )
 
-/** RN radius tokens: xs 8, sm 12, md 16, lg 20, xl 28. */
+/**
+ * M3 Expressive corner scale. The base steps keep the RN radius tokens
+ * (8/12/16/20/28); the expressive steps add the larger 24/32/48 corners used
+ * by hero cards and sheets.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private val SpendrShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(16.dp),
     large = RoundedCornerShape(20.dp),
+    largeIncreased = RoundedCornerShape(24.dp),
     extraLarge = RoundedCornerShape(28.dp),
+    extraLargeIncreased = RoundedCornerShape(32.dp),
+    extraExtraLarge = RoundedCornerShape(48.dp),
 )
 
 /**
@@ -100,6 +114,7 @@ fun resolveSeed(settings: Settings): Color {
     return parseSeedColor(hex)
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SpendrTheme(
     settings: Settings,
@@ -136,6 +151,17 @@ fun SpendrTheme(
         }
     }
 
+    // System-bar icons follow the app's theme, not the system's, so a forced
+    // Light/Dark choice keeps the status bar readable. Called on every path.
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+
     val spendrColors = SpendrColors(
         expense = scheme.primary,
         savings = scheme.tertiary,
@@ -147,9 +173,11 @@ fun SpendrTheme(
     )
 
     androidx.compose.runtime.CompositionLocalProvider(LocalSpendrColors provides spendrColors) {
-        MaterialTheme(
+        MaterialExpressiveTheme(
             colorScheme = scheme,
+            motionScheme = MotionScheme.expressive(),
             shapes = SpendrShapes,
+            typography = SpendrTypography,
             content = content,
         )
     }

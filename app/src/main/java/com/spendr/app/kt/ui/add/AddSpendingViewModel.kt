@@ -78,6 +78,7 @@ class AddSpendingViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Suggestion candidates, re-queried whenever the paid amount changes (RN parity). */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val candidates = state
         .flatMapLatest { s ->
             val paid = s.draft.paidAmount

@@ -24,14 +24,15 @@ build-apk:
     echo "Built $apk"
     ~/docker/files/bin/share "$(pwd)/$apk"
 
-# Build the dev debug APK and stage a timestamped DEV copy in _apk
+# Build the dev release APK into _apk/DEV-spendr-kt-<version>-dev_<dd-mmm_HH-MM>.apk and upload it
 build-apk-dev:
     #!/usr/bin/env bash
     set -euo pipefail
-    ./gradlew :app:assembleDevDebug
+    ./gradlew :app:assembleDevRelease
     mkdir -p _apk
     ver="$(sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -1)"
     stamp="$(date +"%d-%b_%H-%M" | tr 'A-Z' 'a-z')"
     apk="_apk/DEV-spendr-kt-${ver}-dev_${stamp}.apk"
-    cp app/build/outputs/apk/dev/debug/app-dev-debug.apk "$apk"
+    cp app/build/outputs/apk/dev/release/app-dev-release.apk "$apk"
     echo "Built $apk"
+    ~/docker/files/bin/share "$(pwd)/$apk"

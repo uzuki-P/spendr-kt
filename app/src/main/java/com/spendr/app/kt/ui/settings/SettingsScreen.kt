@@ -1,44 +1,43 @@
 package com.spendr.app.kt.ui.settings
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Tag
-import androidx.compose.material.icons.outlined.Vibration
-import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.rememberSliderState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,7 +50,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.AppContainer
 import com.spendr.app.kt.data.settings.ColorSource
@@ -59,16 +60,21 @@ import com.spendr.app.kt.data.settings.Settings
 import com.spendr.app.kt.data.settings.ThemeMode
 import com.spendr.app.kt.data.settings.VibrationStrength
 import com.spendr.app.kt.platform.vibrationMs
-import com.spendr.app.kt.ui.components.BouncyIconButton
-import com.spendr.app.kt.ui.components.BouncySurface
 import com.spendr.app.kt.ui.components.BouncyTextButton
+import com.spendr.app.kt.ui.components.CategoryIconBadge
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.MciIcon
+import com.spendr.app.kt.ui.components.MorphSurface
+import com.spendr.app.kt.ui.components.MorphingBadge
+import com.spendr.app.kt.ui.components.SegmentedGroup
+import com.spendr.app.kt.ui.components.SpendrTopBar
 import com.spendr.app.kt.ui.components.pressScale
+import com.spendr.app.kt.ui.components.rememberCollapsingBar
+import com.spendr.app.kt.ui.components.segmentCorners
 import com.spendr.app.kt.ui.theme.PRESET_SEEDS
-import com.spendr.app.kt.ui.theme.SpendrTheme
 import kotlinx.coroutines.launch
 
-/** Settings, ported from RN `SettingsScreen` (Appearance, Spending, Data, Haptics, Developer). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Settings: Appearance, Spending, Data, Haptics, Developer. */
 @Composable
 fun SettingsScreen(
     container: AppContainer,
@@ -78,175 +84,143 @@ fun SettingsScreen(
     onOpenQuickAdd: () -> Unit,
     onOpenDebug: () -> Unit,
 ) {
-    val settings by container.settings.settings.collectAsState(initial = Settings())
+    // Null until DataStore emits: the body waits for the stored values so the
+    // toggles and swatch panel don't animate over from defaults on every open
+    val loaded by container.settings.settings.collectAsState(initial = null)
+    val settings = loaded ?: Settings()
     val scope = rememberCoroutineScope()
     var showVibrationDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    val scrollBehavior = rememberCollapsingBar()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = { SpendrTopBar(title = "Settings", onBack = onBack, scrollBehavior = scrollBehavior) },
     ) { innerPadding ->
+        if (loaded == null) return@Scaffold
         Column(
             Modifier
                 .padding(innerPadding)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            // RN SettingsScreen: one flat column, uniform spacing.md (12dp) gaps
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 16.dp),
         ) {
             GroupLabel("Appearance")
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-            ) {
-                Column(Modifier.padding(8.dp)) {
-                    ChoiceTiles(
-                        options = listOf(
-                            ThemeOption(ThemeMode.SYSTEM, "System", "theme-light-dark"),
-                            ThemeOption(ThemeMode.LIGHT, "Light", "white-balance-sunny"),
-                            ThemeOption(ThemeMode.DARK, "Dark", "moon-waning-crescent"),
-                        ),
-                        selected = settings.themeMode,
-                        onSelect = { scope.launch { container.settings.setThemeMode(it) } },
-                    )
-                }
-            }
+            ConnectedChoices(
+                options = listOf(
+                    Choice(ThemeMode.SYSTEM, "System", "theme-light-dark"),
+                    Choice(ThemeMode.LIGHT, "Light", "white-balance-sunny"),
+                    Choice(ThemeMode.DARK, "Dark", "moon-waning-crescent"),
+                ),
+                selected = settings.themeMode,
+                onSelect = { scope.launch { container.settings.setThemeMode(it) } },
+            )
 
             GroupLabel("Theme color")
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            ConnectedChoices(
+                options = listOf(
+                    Choice(ColorSource.DEFAULT, "Default", "format-color-fill"),
+                    Choice(ColorSource.WALLPAPER, "Wallpaper", "wallpaper"),
+                    Choice(ColorSource.USER, "Custom", "palette-outline"),
+                ),
+                selected = settings.colorSource,
+                onSelect = { scope.launch { container.settings.setColorSource(it) } },
+            )
+            AnimatedVisibility(
+                visible = settings.colorSource == ColorSource.WALLPAPER &&
+                    android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S,
             ) {
-                Column(
-                    Modifier.padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                Text(
+                    "Wallpaper colors are only available on Android 12 and above. " +
+                        "Using the default brand color instead.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                )
+            }
+            AnimatedVisibility(
+                visible = settings.colorSource == ColorSource.USER,
+                enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                    fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                exit = shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) +
+                    fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ColorSourceTile(
-                            label = "Default",
-                            glyph = "format-color-fill",
-                            selected = settings.colorSource == ColorSource.DEFAULT,
-                            onClick = { scope.launch { container.settings.setColorSource(ColorSource.DEFAULT) } },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ColorSourceTile(
-                            label = "Wallpaper",
-                            glyph = "wallpaper",
-                            selected = settings.colorSource == ColorSource.WALLPAPER,
-                            onClick = { scope.launch { container.settings.setColorSource(ColorSource.WALLPAPER) } },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ColorSourceTile(
-                            label = "Custom",
-                            glyph = "palette-outline",
-                            selected = settings.colorSource == ColorSource.USER,
-                            onClick = { scope.launch { container.settings.setColorSource(ColorSource.USER) } },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    if (settings.colorSource == ColorSource.WALLPAPER &&
-                        android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
-                    ) {
-                        Text(
-                            "Wallpaper colors are only available on Android 12 and above. " +
-                                "Using the default brand color instead.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (settings.colorSource == ColorSource.USER) {
-                        SwatchGrid(
-                            selectedHex = settings.userSeed ?: com.spendr.app.kt.ui.theme.DEFAULT_SEED,
-                            onPick = { hex -> scope.launch { container.settings.setUserSeed(hex) } },
-                        )
-                    }
+                    SwatchGrid(
+                        selectedHex = settings.userSeed ?: com.spendr.app.kt.ui.theme.DEFAULT_SEED,
+                        onPick = { hex -> scope.launch { container.settings.setUserSeed(hex) } },
+                        modifier = Modifier.padding(16.dp),
+                    )
                 }
             }
 
             GroupLabel("Spending")
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-            ) {
-                Column {
-                    SettingsRow(
-                        icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("shape-outline", "#A86086", 38.dp) },
-                        title = "Manage categories",
-                        subtitle = "Add, edit, reorder categories",
-                        onClick = onOpenCategories,
-                    )
-                    RowDivider()
-                    SettingsRow(
-                        icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("lightning-bolt", "#A86829", 38.dp) },
-                        title = "Manage quick add",
-                        subtitle = "Fast input shortcuts",
-                        onClick = onOpenQuickAdd,
-                    )
-                    RowDivider()
-                    SettingsRow(
-                        icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("currency-usd", "#3C7CAB", 38.dp) },
-                        title = "Currency",
-                        subtitle = "Rupiah (IDR)",
-                    )
-                }
+            SegmentedGroup {
+                SettingsRow(
+                    corners = segmentCorners(0, 3),
+                    icon = { CategoryIconBadge("shape-outline", "#A86086", 40.dp) },
+                    title = "Manage categories",
+                    subtitle = "Add, edit, reorder categories",
+                    onClick = onOpenCategories,
+                )
+                SettingsRow(
+                    corners = segmentCorners(1, 3),
+                    icon = { CategoryIconBadge("lightning-bolt", "#A86829", 40.dp) },
+                    title = "Manage quick add",
+                    subtitle = "Fast input shortcuts",
+                    onClick = onOpenQuickAdd,
+                )
+                SettingsRow(
+                    corners = segmentCorners(2, 3),
+                    icon = { CategoryIconBadge("currency-usd", "#3C7CAB", 40.dp) },
+                    title = "Currency",
+                    subtitle = "Rupiah (IDR)",
+                )
             }
 
             GroupLabel("Data")
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-            ) {
-                Column {
-                    SettingsRow(
-                        icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("backup-restore", "#098396", 38.dp) },
-                        title = "Backup & restore",
-                        subtitle = "Archives, restore, CSV import and export",
-                        onClick = onOpenBackup,
-                    )
-                    RowDivider()
-                    SettingsRow(
-                        icon = {
-                            Box(
-                                Modifier
-                                    .size(38.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                                        CircleShape,
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                com.spendr.app.kt.ui.components.MciIcon(
-                                    "database-remove-outline",
-                                    20.dp,
-                                    MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        },
-                        title = "Clear database",
-                        subtitle = "Erase local data and restore defaults",
-                        onClick = { showClearDialog = true },
-                    )
-                }
+            SegmentedGroup {
+                SettingsRow(
+                    corners = segmentCorners(0, 2),
+                    icon = { CategoryIconBadge("backup-restore", "#098396", 40.dp) },
+                    title = "Backup & restore",
+                    subtitle = "Archives, restore, CSV import and export",
+                    onClick = onOpenBackup,
+                )
+                SettingsRow(
+                    corners = segmentCorners(1, 2),
+                    icon = {
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.errorContainer,
+                                    MaterialShapes.Cookie9Sided.toShape(),
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MciIcon("database-remove-outline", 20.dp, MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                    },
+                    title = "Clear database",
+                    subtitle = "Erase local data and restore defaults",
+                    titleColor = MaterialTheme.colorScheme.error,
+                    onClick = { showClearDialog = true },
+                )
             }
 
             GroupLabel("Haptics")
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-            ) {
+            SegmentedGroup {
                 SettingsRow(
-                    icon = { Icon(Icons.Outlined.Vibration, contentDescription = null) },
+                    corners = segmentCorners(0, 1),
+                    icon = { CategoryIconBadge("vibrate", "#7B6A9E", 40.dp) },
                     title = "Vibration strength",
                     subtitle = describeVibration(settings),
                     onClick = { showVibrationDialog = true },
@@ -254,12 +228,10 @@ fun SettingsScreen(
             }
 
             GroupLabel("Developer")
-            Card(
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-            ) {
+            SegmentedGroup {
                 SettingsRow(
-                    icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("bug-outline", "#9366A4", 38.dp) },
+                    corners = segmentCorners(0, 1),
+                    icon = { CategoryIconBadge("bug-outline", "#9366A4", 40.dp) },
                     title = "Debug",
                     subtitle = "Developer-only tools and sample data",
                     onClick = onOpenDebug,
@@ -267,12 +239,12 @@ fun SettingsScreen(
             }
 
             Text(
-                "spendr-kt v0.4.1",
-                style = MaterialTheme.typography.bodySmall,
+                "spendr-kt v${com.spendr.app.kt.BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp, bottom = 24.dp),
+                    .padding(top = 24.dp, bottom = 32.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
         }
@@ -293,6 +265,7 @@ fun SettingsScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
+            icon = { MciIcon("database-remove-outline", 24.dp, MaterialTheme.colorScheme.error) },
             title = { Text("Clear database") },
             text = {
                 Text(
@@ -310,6 +283,7 @@ fun SettingsScreen(
                             showClearDialog = false
                         }
                     },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text("Clear database") }
             },
             dismissButton = { BouncyTextButton(onClick = { showClearDialog = false }) { Text("Cancel") } },
@@ -317,79 +291,78 @@ fun SettingsScreen(
     }
 }
 
-/** RN GroupLabel: small uppercase secondary label, 4dp inset, no extra spacing. */
-@Composable
-private fun GroupLabel(title: String, modifier: Modifier = Modifier) {
-    Text(
-        title.uppercase(),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(start = 4.dp),
-    )
-}
+private data class Choice<T>(val value: T, val label: String, val glyph: String)
 
-/** 1dp divider inset 16dp, between grouped rows. */
+/** Full-width connected toggle buttons; the checked one rounds fully. */
 @Composable
-private fun RowDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
-}
-
-/**
- * RN ListItem row: 38dp leading badge, titleMedium 600 + bodySmall subtitle,
- * 16/12 padding, chevron when pressable — tighter than M3 ListItem.
- */
-@Composable
-private fun SettingsRow(
-    title: String,
-    subtitle: String,
-    modifier: Modifier = Modifier,
-    icon: (@Composable () -> Unit)? = null,
-    onClick: (() -> Unit)? = null,
+private fun <T> ConnectedChoices(
+    options: List<Choice<T>>,
+    selected: T,
+    onSelect: (T) -> Unit,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (onClick != null) {
-                    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    Modifier
-                        .pressScale(source)
-                        .clickable(
-                            interactionSource = source,
-                            indication = androidx.compose.material3.ripple(),
-                            onClick = onClick,
-                        )
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
-        if (icon != null) icon()
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        options.forEachIndexed { index, option ->
+            val checked = option.value == selected
+            ToggleButton(
+                checked = checked,
+                onCheckedChange = { onSelect(option.value) },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(72.dp),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    MciIcon(option.glyph, 22.dp, LocalContentColor.current)
+                    Text(
+                        option.label,
+                        style = if (checked) {
+                            MaterialTheme.typography.labelLargeEmphasized
+                        } else {
+                            MaterialTheme.typography.labelLarge
+                        },
+                        maxLines = 1,
+                    )
+                }
+            }
         }
-        if (onClick != null) {
-            com.spendr.app.kt.ui.components.MciIcon(
-                "chevron-right",
-                22.dp,
-                MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    }
+}
+
+/** Seed swatches; the picked one morphs from a circle into a scalloped cookie. */
+@Composable
+private fun SwatchGrid(selectedHex: String, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
+    val normalized = selectedHex.uppercase()
+    FlowRow(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PRESET_SEEDS.forEach { hex ->
+            val isSelected = hex.uppercase() == normalized
+            MorphingBadge(
+                selected = isSelected,
+                color = com.spendr.app.kt.ui.theme.parseSeedColor(hex),
+                size = 48.dp,
+                modifier = Modifier
+                    .pressScale(pressedScale = 0.88f, onClick = { onPick(hex) })
+                    .semantics { contentDescription = "Seed color $hex" },
+            ) {
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = scaleIn(MaterialTheme.motionScheme.fastSpatialSpec()),
+                    exit = scaleOut(MaterialTheme.motionScheme.fastSpatialSpec()),
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                }
+            }
         }
     }
 }
@@ -404,156 +377,6 @@ private fun describeVibration(settings: Settings): String =
             "$label · $ms ms"
         }
     }
-
-private data class ThemeOption<T>(val value: T, val label: String, val glyph: String)
-
-@Composable
-private fun <T> ChoiceTiles(
-    options: List<ThemeOption<T>>,
-    selected: T,
-    onSelect: (T) -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { option ->
-            val isSelected = option.value == selected
-            // RN ChoiceTiles: selected = primary fill + onPrimary content,
-            // idle = surfaceVariant + 1dp border + textPrimary content
-            BouncySurface(
-                onClick = { onSelect(option.value) },
-                shape = MaterialTheme.shapes.medium,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-                border = BorderStroke(
-                    1.dp,
-                    if (isSelected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        SpendrTheme.colors.border
-                    },
-                ),
-                modifier = Modifier.weight(1f),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(12.dp),
-                ) {
-                    com.spendr.app.kt.ui.components.MciIcon(
-                        option.glyph,
-                        22.dp,
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
-                    Text(
-                        option.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ColorSourceTile(
-    label: String,
-    glyph: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    BouncySurface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        },
-        border = BorderStroke(
-            1.dp,
-            if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                SpendrTheme.colors.border
-            },
-        ),
-        modifier = modifier,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(12.dp),
-        ) {
-            com.spendr.app.kt.ui.components.MciIcon(
-                glyph,
-                22.dp,
-                if (selected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            )
-            Text(
-                label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            )
-        }
-    }
-}
-
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-private fun SwatchGrid(selectedHex: String, onPick: (String) -> Unit) {
-    val normalized = selectedHex.uppercase()
-    // RN swatch row: fixed 40dp circles, 8dp gaps, natural wrap
-    androidx.compose.foundation.layout.FlowRow(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        PRESET_SEEDS.forEach { hex ->
-            val isSelected = hex.uppercase() == normalized
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .background(
-                        com.spendr.app.kt.ui.theme.parseSeedColor(hex),
-                        CircleShape,
-                    )
-                    .border(
-                        width = if (isSelected) 3.dp else 0.dp,
-                        color = if (isSelected) Color.White else Color.Transparent,
-                        shape = CircleShape,
-                    )
-                    .pressScale(onClick = { onPick(hex) }),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (isSelected) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun VibrationStrengthDialog(
@@ -627,13 +450,17 @@ private fun VibrationStrengthDialog(
                     }
                 }
                 if (draft == VibrationStrength.CUSTOM) {
-                    Slider(
+                    val sliderState = rememberSliderState(
                         value = customMs.toFloat(),
+                        trackRange = 1f..200f,
+                    )
+                    Slider(
+                        state = sliderState,
                         onValueChange = {
+                            sliderState.value = it
                             customMs = it.toInt().coerceIn(1, 200)
                             preview(VibrationStrength.CUSTOM, customMs)
                         },
-                        valueRange = 1f..200f,
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Barely felt", style = MaterialTheme.typography.labelSmall)

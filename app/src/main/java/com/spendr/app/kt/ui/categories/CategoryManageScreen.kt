@@ -1,5 +1,23 @@
 package com.spendr.app.kt.ui.categories
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.EmptyState
+import com.spendr.app.kt.ui.components.MorphSurface
+import com.spendr.app.kt.ui.components.MorphingBadge
+import com.spendr.app.kt.ui.components.SegmentGap
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.rememberCollapsingBar
+import com.spendr.app.kt.ui.components.segmentCorners
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,7 +54,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,8 +91,7 @@ private val ICON_CHOICES = listOf(
     "wrench", "phone", "tshirt-crew-outline", "baby-carriage", "dots-horizontal-circle-outline",
 )
 
-/** Category CRUD with reorder + delete-with-reassignment, ported from RN `CategoryManageScreen`. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Category CRUD with animated reorder and delete-with-reassignment. */
 @Composable
 fun CategoryManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
@@ -82,117 +100,97 @@ fun CategoryManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     var editing by remember { mutableStateOf<CategoryEntity?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<CategoryEntity?>(null) }
+    val scrollBehavior = rememberCollapsingBar()
+    val listState = rememberLazyListState()
+
+    fun move(from: Int, to: Int) {
+        val ids = categories.map { it.id }.toMutableList()
+        val id = ids.removeAt(from)
+        ids.add(to, id)
+        scope.launch { container.categories.reorderCategories(ids) }
+    }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Manage Categories", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = { SpendrTopBar(title = "Categories", onBack = onBack, scrollBehavior = scrollBehavior) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { creating = true },
+                expanded = !listState.canScrollBackward,
+                icon = { MciIcon("plus", 24.dp, MaterialTheme.colorScheme.onPrimaryContainer) },
+                text = { Text("New category") },
             )
         },
     ) { innerPadding ->
-        Column(
-            Modifier
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.padding(innerPadding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 112.dp),
         ) {
-            BouncyTonalButton(
-                onClick = { creating = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                MciIcon("plus", 18.dp, MaterialTheme.colorScheme.onSecondaryContainer)
-                Text("Add category", Modifier.padding(start = 8.dp))
-            }
             if (categories.isEmpty()) {
-                Text(
-                    "No categories yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                item(key = "empty") {
+                    EmptyState(glyph = "shape-outline", title = "No categories yet")
+                }
             }
-            categories.forEachIndexed { index, category ->
-                Card(
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    ),
+            itemsIndexed(categories, key = { _, category -> category.id }) { index, category ->
+                MorphSurface(
+                    onClick = { editing = category },
+                    corners = segmentCorners(index, categories.size),
+                    pressedCorners = Corners(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem()
+                        .padding(bottom = SegmentGap),
                 ) {
                     Row(
-                        Modifier.padding(12.dp),
+                        Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        CategoryIconBadge(icon = category.icon, color = category.color, size = 42.dp)
+                        CategoryIconBadge(icon = category.icon, color = category.color, size = 44.dp)
                         Text(
                             category.name,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
-                        // RN styles.actions: trailing icon cluster with 2dp gap
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            BouncyIconButton(
-                                onClick = {
-                                    val ids = categories.map { it.id }.toMutableList()
-                                    ids.removeAt(index)
-                                    ids.add(index - 1, category.id)
-                                    scope.launch { container.categories.reorderCategories(ids) }
-                                },
-                                enabled = index > 0,
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                MciIcon(
-                                    "chevron-up",
-                                    24.dp,
-                                    if (index > 0) {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                    },
-                                )
+                        // Up/down stacked as one reorder control so the name keeps its width
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                            Column {
+                                BouncyIconButton(
+                                    onClick = { move(index, index - 1) },
+                                    enabled = index > 0,
+                                    modifier = Modifier.size(width = 44.dp, height = 30.dp),
+                                ) {
+                                    MciIcon(
+                                        "chevron-up",
+                                        22.dp,
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (index > 0) 1f else 0.3f),
+                                        contentDescription = "Move ${category.name} up",
+                                    )
+                                }
+                                BouncyIconButton(
+                                    onClick = { move(index, index + 1) },
+                                    enabled = index < categories.size - 1,
+                                    modifier = Modifier.size(width = 44.dp, height = 30.dp),
+                                ) {
+                                    MciIcon(
+                                        "chevron-down",
+                                        22.dp,
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                            alpha = if (index < categories.size - 1) 1f else 0.3f,
+                                        ),
+                                        contentDescription = "Move ${category.name} down",
+                                    )
+                                }
                             }
-                            BouncyIconButton(
-                                onClick = {
-                                    val ids = categories.map { it.id }.toMutableList()
-                                    ids.removeAt(index)
-                                    ids.add(index + 1, category.id)
-                                    scope.launch { container.categories.reorderCategories(ids) }
-                                },
-                                enabled = index < categories.size - 1,
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                MciIcon(
-                                    "chevron-down",
-                                    24.dp,
-                                    if (index < categories.size - 1) {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                    },
-                                )
-                            }
-                            BouncyIconButton(
-                                onClick = { editing = category },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                MciIcon("pencil-outline", 24.dp, MaterialTheme.colorScheme.primary)
-                            }
-                            BouncyIconButton(
-                                onClick = { deleting = category },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                MciIcon("trash-can-outline", 24.dp, MaterialTheme.colorScheme.error)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            BouncyIconButton(onClick = { deleting = category }) {
+                                MciIcon("trash-can-outline", 22.dp, MaterialTheme.colorScheme.error, contentDescription = "Delete ${category.name}")
                             }
                         }
                     }
@@ -247,7 +245,10 @@ private fun CategoryEditSheet(
 
     // Open fully expanded: name, icons, colors, and Save are all on screen at
     // once (the inner column still scrolls on short screens, Save stays pinned)
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+    )
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         // Scrollable content + pinned Save: the button stays visible even when
         // the name field, icon grid, and palette overflow the sheet height.
@@ -261,7 +262,8 @@ private fun CategoryEditSheet(
             ) {
                 Text(
                     if (existing == null) "New category" else "Edit category",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmallEmphasized,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
                 ThemedTextField(
                     value = name,
@@ -299,22 +301,17 @@ private fun CategoryEditSheet(
                 ) {
                     items(ICON_CHOICES) { iconName ->
                         val selected = iconName == icon
-                        BouncySurface(
+                        // Picked icon rounds into a circle; others square off on press
+                        MorphSurface(
                             onClick = { icon = iconName },
-                            shape = MaterialTheme.shapes.medium,
+                            corners = if (selected) Corners(24.dp) else Corners(14.dp),
+                            pressedCorners = Corners(8.dp),
+                            pressedScale = 0.9f,
                             color = if (selected) {
-                                MaterialTheme.colorScheme.primaryContainer
+                                MaterialTheme.colorScheme.primary
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainerHigh
                             },
-                            border = BorderStroke(
-                                if (selected) 2.dp else 1.dp,
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                            ),
                             modifier = Modifier.size(48.dp),
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -322,7 +319,7 @@ private fun CategoryEditSheet(
                                     iconName,
                                     22.dp,
                                     if (selected) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                        MaterialTheme.colorScheme.onPrimary
                                     } else {
                                         MaterialTheme.colorScheme.onSurface
                                     },
@@ -345,25 +342,23 @@ private fun CategoryEditSheet(
                 ) {
                     COLUMN_PALETTE.forEach { hex ->
                         val selected = hex == color
-                        BouncySurface(
-                            onClick = { color = hex },
-                            shape = CircleShape,
+                        MorphingBadge(
+                            selected = selected,
                             color = com.spendr.app.kt.ui.components.categoryColor(hex),
-                            border = BorderStroke(
-                                3.dp,
-                                if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
-                            ),
-                            modifier = Modifier.size(36.dp),
+                            size = 40.dp,
+                            modifier = Modifier.pressScale(pressedScale = 0.88f, onClick = { color = hex }),
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                if (selected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onError,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = selected,
+                                enter = androidx.compose.animation.scaleIn(MaterialTheme.motionScheme.fastSpatialSpec()),
+                                exit = androidx.compose.animation.scaleOut(MaterialTheme.motionScheme.fastSpatialSpec()),
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp),
+                                )
                             }
                         }
                     }
@@ -379,7 +374,7 @@ private fun CategoryEditSheet(
                     }
                 },
                 enabled = true,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
+                height = ButtonDefaults.MediumContainerHeight,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp)
@@ -410,6 +405,7 @@ private fun DeleteCategoryFlow(
     when (stage) {
         Stage.PICK -> AlertDialog(
             onDismissRequest = onDone,
+            icon = { MciIcon("swap-horizontal", 24.dp, MaterialTheme.colorScheme.secondary) },
             title = { Text("Move and delete \"${target.name}\"?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

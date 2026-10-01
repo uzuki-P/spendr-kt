@@ -22,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,59 +61,14 @@ fun CategoryPickerContent(
     Column(modifier.padding(horizontal = 16.dp)) {
         Text(
             "Select category",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(bottom = 12.dp),
+            style = MaterialTheme.typography.headlineSmallEmphasized,
+            modifier = Modifier.padding(start = 4.dp, bottom = 16.dp),
         )
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                Modifier.padding(start = 16.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MciIcon(
-                    "magnify",
-                    20.dp,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    singleLine = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 14.dp),
-                    decorationBox = { inner ->
-                        Box {
-                            if (query.isEmpty()) {
-                                Text(
-                                    "Search categories",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = SpendrTheme.colors.textTertiary,
-                                )
-                            }
-                            inner()
-                        }
-                    },
-                )
-                if (query.isNotEmpty()) {
-                    BouncyIconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
-                        MciIcon(
-                            "close-circle",
-                            18.dp,
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+        SearchPill(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = "Search categories",
+        )
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -122,58 +78,26 @@ fun CategoryPickerContent(
                 .height(360.dp),
         ) {
             items(ordered, key = { it.id }) { category ->
-                val selected = category.id == selectedId
-                BouncySurface(
+                CategoryTile(
+                    label = category.name,
+                    selected = category.id == selectedId,
                     onClick = { onSelect(category.id) },
-                    shape = MaterialTheme.shapes.medium,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            Color.Transparent
-                        },
-                    ),
-                    modifier = Modifier
-                        .padding(4.dp),
+                    modifier = Modifier.animateItem(),
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
-                    ) {
-                        CategoryIconBadge(icon = category.icon, color = category.color, size = 40.dp)
-                        Text(
-                            category.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1,
-                        )
-                    }
+                    CategoryIconBadge(icon = category.icon, color = category.color, size = 44.dp)
                 }
             }
         }
         if (onManage != null) {
-            Text(
-                "Manage categories",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            BouncyTextButton(
+                onClick = onManage,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .pressScale(onClick = onManage)
-                    .padding(vertical = 12.dp),
-            )
+                    .align(Alignment.CenterHorizontally)
+                    .padding(vertical = 8.dp),
+            ) {
+                MciIcon("cog-outline", 18.dp, MaterialTheme.colorScheme.primary)
+                Text("Manage categories", modifier = Modifier.padding(start = 8.dp))
+            }
         }
     }
 }
@@ -197,52 +121,14 @@ fun CategoryMultiSelectSheet(
         Column(Modifier.padding(start = 16.dp, end = 16.dp)) {
             Text(
                 "Select categories",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 12.dp),
+                style = MaterialTheme.typography.headlineSmallEmphasized,
+                modifier = Modifier.padding(start = 4.dp, bottom = 16.dp),
             )
-            // Search pill
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    Modifier.padding(start = 16.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    MciIcon("magnify", 20.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        singleLine = true,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 14.dp),
-                        decorationBox = { inner ->
-                            Box {
-                                if (query.isEmpty()) {
-                                    Text(
-                                        "Search categories",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = SpendrTheme.colors.textTertiary,
-                                    )
-                                }
-                                inner()
-                            }
-                        },
-                    )
-                    if (query.isNotEmpty()) {
-                        BouncyIconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
-                            MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
+            SearchPill(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = "Search categories",
+            )
             val filtered = remember(categories, query) {
                 categories.filter { it.name.contains(query.trim(), ignoreCase = true) }
             }
@@ -310,7 +196,6 @@ fun CategoryMultiSelectSheet(
     }
 }
 
-/** RN CategoryPicker tile: bordered rounded square, icon circle over the name. */
 @Composable
 private fun MultiSelectCategoryTile(
     label: String,
@@ -320,59 +205,67 @@ private fun MultiSelectCategoryTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BouncySurface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
+    CategoryTile(label = label, selected = selected, onClick = onClick, modifier = modifier) {
+        if (icon != null && color != null) {
+            CategoryIconBadge(icon = icon, color = color, size = 44.dp)
         } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        },
-        border = BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        ),
-        modifier = modifier
-            .padding(4.dp),
+            // "All categories": neutral badge that morphs to a cookie when picked
+            MorphingBadge(
+                selected = selected,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f),
+                size = 44.dp,
+            ) {
+                MciIcon("shape-outline", 22.dp, MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/**
+ * Picker tile: badge over the name. Selected tiles fill with primaryContainer
+ * and round out; every tile squares off slightly while pressed.
+ */
+@Composable
+private fun CategoryTile(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badge: @Composable () -> Unit,
+) {
+    val container by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "tileColor",
+    )
+    MorphSurface(
+        onClick = onClick,
+        corners = if (selected) Corners(32.dp) else Corners(16.dp),
+        pressedCorners = Corners(10.dp),
+        pressedScale = 0.94f,
+        color = container,
+        modifier = modifier.padding(4.dp),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            modifier = Modifier.padding(vertical = 14.dp, horizontal = 4.dp),
         ) {
-            if (icon != null && color != null) {
-                CategoryIconBadge(icon = icon, color = color, size = 40.dp)
-            } else {
-                // "All categories": neutral circle, RN tint(onSurfaceVariant, 0.12)
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .background(
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f),
-                            androidx.compose.foundation.shape.CircleShape,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MciIcon(
-                        "shape-outline",
-                        20.dp,
-                        if (selected) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-            }
+            badge()
             Text(
                 label,
-                style = MaterialTheme.typography.labelMedium,
+                style = if (selected) {
+                    MaterialTheme.typography.labelLargeEmphasized
+                } else {
+                    MaterialTheme.typography.labelLarge
+                },
                 color = if (selected) {
                     MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
     }

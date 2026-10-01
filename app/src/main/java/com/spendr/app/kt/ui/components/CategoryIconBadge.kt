@@ -7,13 +7,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.toShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -29,13 +35,18 @@ fun categoryColor(hex: String): Color =
 
 internal val MciFamily = FontFamily(Font(R.font.mci))
 
-/** Material Community Icons glyph rendered from the bundled font, RN-exact. */
+/**
+ * Material Community Icons glyph rendered from the bundled font. Pass
+ * [contentDescription] for icon-only controls; the glyph itself is a
+ * private-use character that screen readers cannot name.
+ */
 @Composable
 fun MciIcon(
     name: String,
     size: Dp,
     tint: Color,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
 ) {
     val glyphSizeSp = with(LocalDensity.current) { size.toSp() }
     val glyph = MciGlyphs.glyphString(name) ?: MciGlyphs.glyphString("help-circle") ?: "?"
@@ -46,15 +57,24 @@ fun MciIcon(
         lineHeight = glyphSizeSp,
         color = tint,
         textAlign = TextAlign.Center,
-        modifier = modifier.size(size),
+        modifier = modifier
+            .size(size)
+            .then(
+                if (contentDescription != null) {
+                    Modifier.clearAndSetSemantics { this.contentDescription = contentDescription }
+                } else {
+                    Modifier
+                },
+            ),
     )
 }
 
 /**
- * Circle badge with the Material Community Icons glyph, identical to the RN
- * app's `CategoryIcon`: category color at 12% alpha background, glyph rendered
- * in the bundled MCI font at full color.
+ * Category badge: the Material Community Icons glyph in the category color,
+ * on a 16% tint of that color clipped to the M3 Expressive scalloped cookie
+ * shape (pass [shape] to override, e.g. a circle for neutral chips).
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CategoryIconBadge(
     icon: String,
@@ -62,13 +82,14 @@ fun CategoryIconBadge(
     size: Dp,
     modifier: Modifier = Modifier,
     glyphSize: Dp = size / 2,
+    shape: Shape = MaterialShapes.Cookie9Sided.toShape(),
 ) {
     val resolved = categoryColor(color)
     val glyphSizeSp = with(LocalDensity.current) { glyphSize.toSp() }
     Box(
         modifier = modifier
             .size(size)
-            .background(resolved.copy(alpha = 0.12f), CircleShape),
+            .background(resolved.copy(alpha = 0.16f), shape),
         contentAlignment = Alignment.Center,
     ) {
         val glyph = MciGlyphs.glyphString(icon) ?: MciGlyphs.glyphString("tag") ?: "?"
@@ -97,6 +118,7 @@ fun CategoryIconBadgeForCategory(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SectionHeader(
     title: String,
@@ -106,14 +128,13 @@ fun SectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 20.dp, bottom = 8.dp),
+            .padding(start = 4.dp, top = 24.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
     ) {
         Text(
             title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLargeEmphasized,
         )
         if (action != null) action()
     }

@@ -1,5 +1,8 @@
 package com.spendr.app.kt.ui.settings
 
+import com.spendr.app.kt.ui.components.BouncyTextButton
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.SpendrTopBar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,33 +44,17 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit = {}) {
     var result by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Debug", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = { SpendrTopBar(title = "Debug", onBack = onBack) },
     ) { innerPadding ->
-        Column(Modifier.padding(innerPadding)) {
-            Column(Modifier.padding(16.dp)) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    ),
-                ) {
-                    ListItem(
-                        headlineContent = { Text("Seed debug data", fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text("Add realistic Transactions over the last three months.") },
-                        modifier = Modifier
-                            .pressScale { confirmSeed = true },
-                    )
-                }
-            }
+        Column(Modifier.padding(innerPadding).padding(16.dp)) {
+            SettingsRow(
+                corners = Corners(24.dp),
+                icon = { com.spendr.app.kt.ui.components.CategoryIconBadge("database-plus-outline", "#9366A4", 40.dp) },
+                title = "Seed debug data",
+                subtitle = "Add realistic Transactions over the last three months.",
+                onClick = { confirmSeed = true },
+            )
         }
     }
 
@@ -77,7 +64,7 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit = {}) {
             title = { Text("Seed debug data") },
             text = { Text("This adds realistic Transactions to your current data. Continue?") },
             confirmButton = {
-                TextButton(
+                BouncyTextButton(
                     onClick = {
                         confirmSeed = false
                         scope.launch {
@@ -91,7 +78,7 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit = {}) {
                     },
                 ) { Text("Seed") }
             },
-            dismissButton = { TextButton(onClick = { confirmSeed = false }) { Text("Cancel") } },
+            dismissButton = { BouncyTextButton(onClick = { confirmSeed = false }) { Text("Cancel") } },
         )
     }
 
@@ -100,7 +87,7 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit = {}) {
             onDismissRequest = { result = null },
             title = { Text("Debug") },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { result = null }) { Text("OK") } },
+            confirmButton = { BouncyTextButton(onClick = { result = null }) { Text("OK") } },
         )
     }
 }

@@ -70,6 +70,7 @@ class TransactionSearchViewModel(
     private val _matchingItems = MutableStateFlow<Map<Long, String>>(emptyMap())
     val matchingItems: StateFlow<Map<Long, String>> = _matchingItems
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val items: StateFlow<List<TransactionWithCategoryRow>> =
         combine(committedQuery, filters) { query, f -> query to f }
             .debounce(50)
@@ -81,7 +82,7 @@ class TransactionSearchViewModel(
                         categoryIds = f.categoryIds.takeIf { it.isNotEmpty() },
                         approximatePaidAmount = f.approximatePaidAmount,
                         approximatePaidAmountTolerance = f.approximatePaidAmount
-                            ?.let { maxOf(1000L, Math.round(it * 0.1).toLong()) },
+                            ?.let { maxOf(1000L, Math.round(it * 0.1)) },
                     ),
                 )
             }

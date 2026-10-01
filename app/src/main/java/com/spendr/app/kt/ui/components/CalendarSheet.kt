@@ -1,5 +1,12 @@
 package com.spendr.app.kt.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
@@ -72,49 +79,35 @@ fun CalendarSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                BouncySurface(
+                FilledTonalIconButton(
                     onClick = { advance(-1) },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.size(36.dp),
+                    shapes = IconButtonDefaults.shapes(),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        MciIcon("chevron-left", 20.dp, MaterialTheme.colorScheme.onSurface)
-                    }
+                    MciIcon("chevron-left", 22.dp, MaterialTheme.colorScheme.onSecondaryContainer)
                 }
                 Text(
                     formatMonthYear(
                         displayed.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     ),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                BouncySurface(
+                BouncyButton(
                     onClick = {
                         displayed = YearMonth.from(today)
                         onPick(today)
                     },
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Text(
-                        "TODAY",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                }
-                BouncySurface(
+                    height = androidx.compose.material3.ButtonDefaults.ExtraSmallContainerHeight,
+                ) { Text("Today") }
+                FilledTonalIconButton(
                     onClick = { advance(1) },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.size(36.dp),
+                    shapes = IconButtonDefaults.shapes(),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        MciIcon("chevron-right", 20.dp, MaterialTheme.colorScheme.onSurface)
-                    }
+                    MciIcon("chevron-right", 22.dp, MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
 
@@ -157,14 +150,16 @@ fun CalendarSheet(
                     }
                 },
             ) {
+                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+                val effects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
                 androidx.compose.animation.AnimatedContent(
                     targetState = displayed,
                     transitionSpec = {
                         val forward = targetState > initialState
-                        (androidx.compose.animation.slideInHorizontally(tween(220)) { if (forward) 96 else -96 } +
-                            androidx.compose.animation.fadeIn(tween(220))) togetherWith
-                            (androidx.compose.animation.slideOutHorizontally(tween(220)) { if (forward) -96 else 96 } +
-                            androidx.compose.animation.fadeOut(tween(220)))
+                        (androidx.compose.animation.slideInHorizontally(spatial) { if (forward) it / 3 else -it / 3 } +
+                            androidx.compose.animation.fadeIn(effects)) togetherWith
+                            (androidx.compose.animation.slideOutHorizontally(spatial) { if (forward) -it / 3 else it / 3 } +
+                            androidx.compose.animation.fadeOut(effects))
                     },
                     label = "monthSlide",
                 ) { month ->
@@ -185,6 +180,7 @@ private fun MonthGrid(
     selectedDate: LocalDate,
     onPick: (LocalDate) -> Unit,
 ) {
+    val cookie = MaterialShapes.Cookie9Sided.toShape()
     val today = LocalDate.now()
     val danger = MaterialTheme.colorScheme.error
     val primary = MaterialTheme.colorScheme.primary
@@ -240,11 +236,23 @@ private fun MonthGrid(
                                         isToday -> 2.dp
                                         else -> 0.dp
                                     }
+                                    // Selected day pops in as a scalloped cookie
+                                    val pop by animateFloatAsState(
+                                        if (isSelected) 1f else 0.6f,
+                                        MaterialTheme.motionScheme.fastSpatialSpec(),
+                                        label = "dayPop",
+                                    )
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .aspectRatio(1f)
-                                            .background(background, CircleShape)
+                                            .graphicsLayer {
+                                                if (isSelected) {
+                                                    scaleX = pop
+                                                    scaleY = pop
+                                                }
+                                            }
+                                            .background(background, if (isSelected) cookie else CircleShape)
                                             .border(
                                                 border,
                                                 if (isToday) {

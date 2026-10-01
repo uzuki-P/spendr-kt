@@ -121,8 +121,8 @@ object SpendrCsv {
                 original = null
                 discountType = null
             } else {
-                if (original == null || original!! - paid != discount) {
-                    original = paid + discount!!
+                if (original == null || original - paid != discount) {
+                    original = paid + discount
                 }
                 if (discountType == null) discountType = "fixed"
             }

@@ -265,7 +265,7 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
             val c = BackupArchive.categoryFromJson(categories.getJSONObject(i))
             sql.execSQL(
                 "INSERT INTO categories (id, name, icon, color, sort_order, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arrayOf(c.id, c.name, c.icon, c.color, c.sortOrder, if (c.isDefault) 1L else 0L, c.createdAt, c.updatedAt),
+                arrayOf<Any?>(c.id, c.name, c.icon, c.color, c.sortOrder, if (c.isDefault) 1L else 0L, c.createdAt, c.updatedAt),
             )
         }
         for (i in 0 until transactions.length()) {
@@ -276,7 +276,7 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
                     category_id, note, merchant, tags, date, created_at, updated_at, type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
-                arrayOf(
+                arrayOf<Any?>(
                     t.id, t.paidAmount, t.originalAmount, t.discountAmount, t.discountType,
                     t.categoryId, t.note, t.merchant, t.tags, t.date, t.createdAt, t.updatedAt, t.type,
                 ),
@@ -286,14 +286,14 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
             val item = BackupArchive.receiptItemFromJson(receiptItems.getJSONObject(i))
             sql.execSQL(
                 "INSERT INTO receipt_items (id, transaction_id, name, paid_amount, quantity, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
-                arrayOf(item.id, item.transactionId, item.name, item.paidAmount, item.quantity, item.sortOrder),
+                arrayOf<Any?>(item.id, item.transactionId, item.name, item.paidAmount, item.quantity, item.sortOrder),
             )
         }
         for (i in 0 until quickAdds.length()) {
             val q = BackupArchive.quickAddFromJson(quickAdds.getJSONObject(i))
             sql.execSQL(
                 "INSERT INTO quick_add (id, label, category_id, note, paid_amount, merchant, tags, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arrayOf(q.id, q.label, q.categoryId, q.note, q.paidAmount, q.merchant, q.tags, q.sortOrder),
+                arrayOf<Any?>(q.id, q.label, q.categoryId, q.note, q.paidAmount, q.merchant, q.tags, q.sortOrder),
             )
         }
 

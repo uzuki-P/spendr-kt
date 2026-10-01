@@ -60,6 +60,19 @@ import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.ThemedTextField
 import com.spendr.app.kt.ui.components.epochMsToLocalDate
 import com.spendr.app.kt.ui.components.pressScale
+import com.spendr.app.kt.ui.components.EmptyState
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.MorphSurface
+import com.spendr.app.kt.ui.components.SegmentGap
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.segmentCorners
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.FilledTonalIconToggleButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.spendr.app.kt.ui.components.toEpochMs
 import com.spendr.app.kt.ui.transactions.DayGroupHeader
 import com.spendr.app.kt.ui.transactions.TransactionRow
@@ -89,17 +102,8 @@ fun TransactionSearchScreen(
     val isSearching = searchText.trim() != committedQuery
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Search transactions", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    com.spendr.app.kt.ui.components.BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = { SpendrTopBar(title = "Search", onBack = onBack) },
     ) { innerPadding ->
         Column(
             Modifier
@@ -153,81 +157,71 @@ fun TransactionSearchScreen(
                             onClick = { showFilters = true },
                         )
                     }
-                    BouncySurface(
-                        onClick = { showFilters = true },
-                        shape = CircleShape,
-                        color = if (filters.activeCount > 0) {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        },
+                    FilledTonalIconToggleButton(
+                        checked = filters.activeCount > 0,
+                        onCheckedChange = { showFilters = true },
+                        shapes = IconButtonDefaults.toggleableShapes(),
                         modifier = Modifier
-                            .size(36.dp)
-                            .align(Alignment.CenterVertically),
+                            .align(Alignment.CenterVertically)
+                            .semantics { contentDescription = "Search filters" },
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            MciIcon(
-                                "tune-variant",
-                                20.dp,
-                                if (filters.activeCount > 0) {
-                                    MaterialTheme.colorScheme.onSecondaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        }
+                        MciIcon(
+                            "tune-variant",
+                            20.dp,
+                            if (filters.activeCount > 0) {
+                                MaterialTheme.colorScheme.onSecondary
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            },
+                        )
                     }
                 }
 
                 Text(
                     "${items.size} transaction" + if (items.size == 1) "" else "s",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelLargeEmphasized,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
             }
 
             if (items.isEmpty()) {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(top = 96.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    MciIcon("magnify", 28.dp, MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "No transactions found",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Try another search or adjust the filters.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                EmptyState(
+                    glyph = "text-box-search-outline",
+                    title = "No transactions found",
+                    message = "Try another search or adjust the filters.",
+                    modifier = Modifier.padding(top = 48.dp),
+                )
             } else {
                 val grouped = remember(items) { groupByDay(items) }
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                ) {
                     grouped.forEachIndexed { groupIndex, group ->
                         item(key = "header-$groupIndex") {
-                            DayGroupHeader(group.label, group.total)
+                            DayGroupHeader(group.label, group.total, Modifier.animateItem())
                         }
-                        items(group.rows, key = { it.transaction.id }) { row ->
-                            Column {
-                            matchingItems[row.transaction.id]?.let { name ->
-                                Text(
-                                    "Item: $name",
-                                    modifier = Modifier.padding(start = 70.dp, top = 8.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
+                        itemsIndexed(group.rows, key = { _, row -> row.transaction.id }) { index, row ->
+                            Column(
+                                Modifier
+                                    .animateItem()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = SegmentGap),
+                            ) {
+                                matchingItems[row.transaction.id]?.let { name ->
+                                    Text(
+                                        "Item: $name",
+                                        modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 4.dp),
+                                        style = MaterialTheme.typography.labelMediumEmphasized,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                TransactionRow(
+                                    row = row,
+                                    onClick = { onOpenDetail(row.transaction.id) },
+                                    showDate = false,
+                                    corners = segmentCorners(index, group.rows.size),
                                 )
-                            }
-                            TransactionRow(
-                                row = row,
-                                onClick = { onOpenDetail(row.transaction.id) },
-                                showDate = false,
-                            )
                             }
                         }
                     }
@@ -264,7 +258,7 @@ private fun SearchBar(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            Modifier.padding(start = 16.dp, end = 8.dp),
+            Modifier.padding(start = 18.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -300,11 +294,7 @@ private fun SearchBar(
                 },
             )
             if (isSearching) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                LoadingIndicator(modifier = Modifier.size(32.dp))
             } else if (query.isNotEmpty()) {
                 com.spendr.app.kt.ui.components.BouncyIconButton(onClick = { onQueryChange("") }) {
                     MciIcon("close-circle", 18.dp, MaterialTheme.colorScheme.onSurfaceVariant)
@@ -323,22 +313,18 @@ private fun SearchChip(
     showSelectedIcon: Boolean = true,
     color: String? = null,
 ) {
-    BouncySurface(
+    // Selected chips round into pills; all chips square off while pressed
+    MorphSurface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        corners = if (selected) Corners(18.dp) else Corners(10.dp),
+        pressedCorners = Corners(6.dp),
+        pressedScale = 0.95f,
         color = if (selected) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
+            MaterialTheme.colorScheme.surfaceContainerHighest
         },
-        border = BorderStroke(
-            1.dp,
-            if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            },
-        ),
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -397,16 +383,16 @@ private fun SearchFilterDialog(
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = MaterialTheme.shapes.extraLarge,
+            shape = MaterialTheme.shapes.extraLargeIncreased,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .fillMaxWidth(),
         ) {
-            Column(Modifier.padding(20.dp)) {
+            Column(Modifier.padding(24.dp)) {
                 Text(
                     "Search filters",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineSmallEmphasized,
                 )
                 Column(
                     Modifier

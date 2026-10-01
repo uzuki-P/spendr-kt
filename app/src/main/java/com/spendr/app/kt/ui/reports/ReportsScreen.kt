@@ -1,5 +1,14 @@
 package com.spendr.app.kt.ui.reports
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -7,9 +16,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,22 +25,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,9 +42,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -56,16 +55,23 @@ import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.formatRupiahCompact
 import com.spendr.app.kt.domain.formatDayShort
 import com.spendr.app.kt.domain.localDate
-import com.spendr.app.kt.ui.components.BouncyIconButton
-import com.spendr.app.kt.ui.components.BouncySurface
+import com.spendr.app.kt.ui.components.AnimatedAmount
+import com.spendr.app.kt.ui.components.BouncyButton
+import com.spendr.app.kt.ui.components.Corners
+import com.spendr.app.kt.ui.components.EmptyState
+import com.spendr.app.kt.ui.components.MonthPillButton
+import com.spendr.app.kt.ui.components.MorphSurface
+import com.spendr.app.kt.ui.components.SegmentedGroup
+import com.spendr.app.kt.ui.components.SpendrTopBar
+import com.spendr.app.kt.ui.components.categoryColor
+import com.spendr.app.kt.ui.components.rememberCollapsingBar
+import com.spendr.app.kt.ui.components.segmentCorners
+import kotlinx.coroutines.delay
 import com.spendr.app.kt.ui.components.CategoryIconBadge
 import com.spendr.app.kt.ui.components.MciIcon
 import com.spendr.app.kt.ui.components.MonthPager
 import com.spendr.app.kt.ui.components.MonthYearPickerSheet
 import com.spendr.app.kt.ui.components.SectionHeader
-import com.spendr.app.kt.ui.components.monthPillLabel
-import com.spendr.app.kt.ui.components.pressScale
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.spendr.app.kt.ui.theme.SpendrTheme
 import com.spendr.app.kt.ui.components.monthWindow
 import kotlin.math.ceil
@@ -74,8 +80,11 @@ import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.pow
 
-/** Reports, ported from RN `ReportsScreen`: hero card, daily trend bars, category share bars. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Reports: tonal hero (counting total, stat chips), daily trend bars that grow
+ * in on a spring, and the category breakdown as a segmented list whose share
+ * bars fill on entry.
+ */
 @Composable
 fun ReportsScreen(
     viewModel: ReportsViewModel,
@@ -87,46 +96,17 @@ fun ReportsScreen(
     val cursor by viewModel.cursor.collectAsState()
     val months = remember(cursor) { monthWindow(System.currentTimeMillis(), include = cursor) }
     var showMonthPicker by remember { mutableStateOf(false) }
+    val scrollBehavior = rememberCollapsingBar()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            TopAppBar(
-                title = { Text("Reports", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    BouncyIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    BouncySurface(
-                        onClick = { showMonthPicker = true },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.CalendarMonth,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                monthPillLabel(cursor),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Icon(
-                                Icons.Outlined.ExpandMore,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                },
+            SpendrTopBar(
+                title = "Reports",
+                onBack = onBack,
+                scrollBehavior = scrollBehavior,
+                actions = { MonthPillButton(cursor) { showMonthPicker = true } },
             )
         },
     ) { innerPadding ->
@@ -141,76 +121,47 @@ fun ReportsScreen(
                     Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
                 ) {
-                    // Hero card — primaryContainer block: top row (label/amount + See all), stats
                     Surface(
-                        shape = MaterialTheme.shapes.extraLarge,
+                        shape = MaterialTheme.shapes.extraLargeIncreased,
                         color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Column(Modifier.padding(20.dp)) {
+                        Column(Modifier.padding(start = 24.dp, end = 16.dp, top = 16.dp, bottom = 16.dp)) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        "Total spending",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                                    )
-                                    Text(
-                                        formatRupiah(report.total),
-                                        style = MaterialTheme.typography.headlineMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                                // RN heroButton: icon + "See all", onPrimaryContainer
-                                BouncySurface(
+                                Text(
+                                    "Total spending",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                                    modifier = Modifier.weight(1f),
+                                )
+                                BouncyButton(
                                     onClick = { onSeeAll(cursor) },
-                                    shape = MaterialTheme.shapes.small,
-                                    color = Color.Transparent,
+                                    height = ButtonDefaults.ExtraSmallContainerHeight,
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(horizontal = 12.dp),
-                                    ) {
-                                        MciIcon(
-                                            "format-list-bulleted",
-                                            18.dp,
-                                            MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                        Text(
-                                            "See all",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                    }
+                                    MciIcon("format-list-bulleted", 16.dp, MaterialTheme.colorScheme.onPrimary)
+                                    Text("See all", modifier = Modifier.padding(start = 6.dp))
                                 }
                             }
-                            HorizontalDivider(
-                                modifier = Modifier.padding(top = 12.dp),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.28f),
+                            AnimatedAmount(
+                                amount = report.total,
+                                style = MaterialTheme.typography.displaySmallEmphasized,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 12.dp)
-                                    .height(IntrinsicSize.Max),
-                                verticalAlignment = Alignment.CenterVertically,
+                                    .padding(top = 16.dp, end = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 HeroStat("Transactions", report.count.toString(), Modifier.weight(1f))
-                                VerticalHairline()
                                 HeroStat("Avg / day", formatRupiahCompact(viewModel.averagePerDay()), Modifier.weight(1f))
-                                VerticalHairline()
                                 HeroStat(
                                     "Savings",
                                     formatRupiahCompact(report.savings) + " · ${report.savingsCount}x",
@@ -223,128 +174,32 @@ fun ReportsScreen(
                     SectionHeader("Daily trend")
                     Surface(
                         shape = MaterialTheme.shapes.extraLarge,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         if (report.daily.values.any { it > 0 }) {
                             DailyTrendChart(report = report)
                         } else {
-                            // RN: EmptyState "No data yet" when the month has no spending
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                MciIcon(
-                                    "chart-line",
-                                    28.dp,
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    "No data yet",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    "No spending this month yet.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            EmptyState(
+                                glyph = "chart-bar",
+                                title = "No data yet",
+                                message = "No spending this month yet.",
+                            )
                         }
                     }
 
                     SectionHeader("Category breakdown")
                     if (report.categories.isEmpty()) {
-                        Text(
-                            "No categories yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
-                        )
+                        EmptyState(glyph = "shape-outline", title = "No categories yet")
                     } else {
-                        // RN ListGroup separation="gap": one clipped rounded group,
-                        // rows on surfaceContainerHighest separated by 4dp of background
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(20.dp)),
-                        ) {
+                        SegmentedGroup {
                             report.categories.forEachIndexed { index, category ->
-                                if (index > 0) {
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .background(MaterialTheme.colorScheme.background),
-                                    )
-                                }
-                                BouncySurface(
+                                CategoryShareRow(
+                                    category = category,
+                                    index = index,
+                                    corners = segmentCorners(index, report.categories.size),
                                     onClick = { onOpenCategory(category.categoryId) },
-                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                    shape = androidx.compose.ui.graphics.RectangleShape,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Column(
-                                        Modifier.padding(
-                                            horizontal = 16.dp,
-                                            vertical = 8.dp,
-                                        ),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        ) {
-                                            CategoryIconBadge(
-                                                icon = category.icon,
-                                                color = category.color,
-                                                size = 34.dp,
-                                            )
-                                            Text(
-                                                category.name,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f),
-                                            )
-                                            Text(
-                                                formatRupiah(category.total),
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = SpendrTheme.colors.expense,
-                                                maxLines = 1,
-                                            )
-                                        }
-                                        // 6dp track + category-color fill
-                                        Box(
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .height(6.dp)
-                                                .background(
-                                                    MaterialTheme.colorScheme.surfaceContainerLow,
-                                                    RoundedCornerShape(3.dp),
-                                                ),
-                                        ) {
-                                            Box(
-                                                Modifier
-                                                    .fillMaxWidth(category.percent.coerceIn(0f, 100f) / 100f)
-                                                    .height(6.dp)
-                                                    .background(
-                                                        com.spendr.app.kt.ui.components.categoryColor(category.color),
-                                                        RoundedCornerShape(3.dp),
-                                                    ),
-                                            )
-                                        }
-                                        Text(
-                                            String.format("%.1f%% • %dx", category.percent, category.count),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
+                                )
                             }
                         }
                     }
@@ -365,34 +220,100 @@ fun ReportsScreen(
     }
 }
 
+/** Category row: badge, name, total, and a share bar that fills in, staggered by [index]. */
 @Composable
-private fun HeroStat(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+private fun CategoryShareRow(
+    category: ReportsViewModel.CategoryTotalUi,
+    index: Int,
+    corners: Corners,
+    onClick: () -> Unit,
+) {
+    val fill = remember(category.categoryId, category.percent) { Animatable(0f) }
+    LaunchedEffect(category.categoryId, category.percent) {
+        delay(60L * index.coerceAtMost(8))
+        fill.animateTo(
+            category.percent.coerceIn(0f, 100f) / 100f,
+            spring(dampingRatio = 0.7f, stiffness = 180f),
         )
-        Text(
-            value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            maxLines = 1,
-        )
+    }
+    val barColor = categoryColor(category.color)
+    MorphSurface(
+        onClick = onClick,
+        corners = corners,
+        pressedCorners = Corners(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CategoryIconBadge(icon = category.icon, color = category.color, size = 40.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        category.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        String.format("%.1f%% • %dx", category.percent, category.count),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    formatRupiah(category.total),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = SpendrTheme.colors.expense,
+                    maxLines = 1,
+                )
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .background(barColor.copy(alpha = 0.14f), RoundedCornerShape(50)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(fill.value.coerceIn(0f, 1f))
+                        .height(8.dp)
+                        .background(barColor, RoundedCornerShape(50)),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun VerticalHairline() {
-    // RN heroSubDivider: 1dp wide, stretches with the row, 8dp margins
-    Box(
-        Modifier
-            .padding(horizontal = 8.dp)
-            .width(1.dp)
-            .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.28f)),
-    )
+private fun HeroStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .background(
+                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f),
+                MaterialTheme.shapes.large,
+            )
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+            maxLines = 1,
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.titleSmallEmphasized,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
@@ -405,11 +326,14 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
 
     val primaryBarColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.outlineVariant
-    val dimBarColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.58f)
+    val dimBarColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
     val cursorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
     val tertiaryLabel = SpendrTheme.colors.textTertiary
 
     val daily = (1..report.daysInMonth).map { day -> report.daily[day] ?: 0L }
+    // Bars rise from the baseline with a slight overshoot when the month shows
+    val grow = remember(report) { Animatable(0f) }
+    LaunchedEffect(report) { grow.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 160f)) }
     val latestSpendingIndex = daily.indexOfLast { it > 0 }.coerceAtLeast(0)
     var selected by remember(report) { mutableIntStateOf(latestSpendingIndex) }
 
@@ -424,8 +348,7 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp),
         ) {
             Text(
                 formatDayShort(
@@ -436,12 +359,21 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                formatRupiah(daily.getOrNull(selected) ?: 0L),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = SpendrTheme.colors.expense,
-            )
+            AnimatedContent(
+                targetState = daily.getOrNull(selected) ?: 0L,
+                transitionSpec = {
+                    val up = targetState > initialState
+                    (slideInVertically(tween(220)) { if (up) it / 2 else -it / 2 } + fadeIn(tween(220)))
+                        .togetherWith(slideOutVertically(tween(180)) { if (up) -it / 2 else it / 2 } + fadeOut(tween(180)))
+                },
+                label = "selectedDay",
+            ) { value ->
+                Text(
+                    formatRupiah(value),
+                    style = MaterialTheme.typography.headlineMediumEmphasized,
+                    color = SpendrTheme.colors.expense,
+                )
+            }
         }
 
         Column(
@@ -506,11 +438,10 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
                     }
 
                     val slotWidth = plotWidth / n.coerceAtLeast(1)
-                    // RN barWidth: max(2, min(8, slot - 2)) in dp
                     val barWidth = with(density) {
                         (slotWidth.toDp() - 2.dp).coerceIn(2.dp, 8.dp).toPx()
                     }
-                    val barRadius = with(density) { 3.dp.toPx() }
+                    val barRadius = barWidth / 2f
 
                     daily.forEachIndexed { index, total ->
                         val x = (index + 0.5f) * slotWidth
@@ -518,13 +449,13 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
                             // RN barHeightFor: min 3dp for nonzero days
                             val barHeight = with(density) {
                                 (plotHeightDp * ((total / yMax).toFloat())).coerceAtLeast(3.dp).toPx()
-                            }
+                            } * grow.value
                             drawRoundRect(
                                 color = if (index == selected) primaryBarColor else dimBarColor,
                                 topLeft = Offset(x - barWidth / 2, plotHeight - barHeight),
                                 size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
                                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                    minOf(barRadius, barHeight / 2f),
+                                    minOf(barRadius, (barHeight / 2f).coerceAtLeast(0f)),
                                 ),
                             )
                         }
