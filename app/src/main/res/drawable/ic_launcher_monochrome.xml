@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spendr launcher mark: an itemized receipt inside scan brackets (themed icon). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.1"
+        android:scaleY="1.1">
+        <path
+            android:pathData="M31,40 V35 A4,4 0 0 1 35,31 H40 M68,31 H73 A4,4 0 0 1 77,35 V40 M77,68 V73 A4,4 0 0 1 73,77 H68 M40,77 H35 A4,4 0 0 1 31,73 V68"
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="1"
+            android:strokeWidth="3.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M42,35 H66 A3,3 0 0 1 69,38 V73 L65.5,70 L62,73 L58.5,70 L55,73 L51.5,70 L48,73 L44.5,70 L41,73 L39,71.3 V38 A3,3 0 0 1 42,35 Z M45.0,41 H54.0 A1.5,1.5 0 0 1 54.0,44 H45.0 A1.5,1.5 0 0 1 45.0,41 Z M61.0,41 H63.0 A1.5,1.5 0 0 1 63.0,44 H61.0 A1.5,1.5 0 0 1 61.0,41 Z M45.0,47 H51.0 A1.5,1.5 0 0 1 51.0,50 H45.0 A1.5,1.5 0 0 1 45.0,47 Z M61.0,47 H63.0 A1.5,1.5 0 0 1 63.0,50 H61.0 A1.5,1.5 0 0 1 61.0,47 Z M45.0,53 H53.0 A1.5,1.5 0 0 1 53.0,56 H45.0 A1.5,1.5 0 0 1 45.0,53 Z M61.0,53 H63.0 A1.5,1.5 0 0 1 63.0,56 H61.0 A1.5,1.5 0 0 1 61.0,53 Z M46.0,60 H62.0 A2.5,2.5 0 0 1 62.0,65 H46.0 A2.5,2.5 0 0 1 46.0,60 Z" />
+    </group>
+</vector>
