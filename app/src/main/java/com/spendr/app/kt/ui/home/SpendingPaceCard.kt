@@ -233,31 +233,8 @@ private fun PaceChart(
 
     val hasData = pace.thisMonth.isNotEmpty()
 
-    Canvas(
-        modifier = modifier.pointerInput(pace, n) {
-            fun indexAt(x: Float): Int {
-                val clamped = x.coerceIn(0f, size.width.toFloat())
-                return (clamped / size.width * (n - 1).coerceAtLeast(1)).roundToInt().coerceIn(0, n - 1)
-            }
-            detectTapGestures(
-                onPress = { offset ->
-                    onScrub(indexAt(offset.x))
-                    tryAwaitRelease()
-                },
-            )
-        }.pointerInput(pace, n) {
-            detectHorizontalDragGestures { change, _ ->
-                change.consume()
-                val clamped = change.position.x.coerceIn(0f, size.width.toFloat())
-                onScrub(
-                    (clamped / size.width * (n - 1).coerceAtLeast(1)).roundToInt().coerceIn(0, n - 1),
-                )
-            }
-        },
-    ) {
-        val plotWidth = size.width
-        val plotHeight = size.height - labelPx
-        val paint = android.graphics.Paint().apply {
+    val paint = remember(tertiaryColor, labelPx) {
+        android.graphics.Paint().apply {
             color = android.graphics.Color.argb(
                 (tertiaryColor.alpha * 255).toInt(),
                 (tertiaryColor.red * 255).toInt(),
@@ -267,27 +244,64 @@ private fun PaceChart(
             textSize = labelPx
             isAntiAlias = true
         }
+    }
+    val yLabels = (0..steps).map { k ->
+        val value = (steps - k) * MILLION
+        if (value == 0L) "0" else "${value / MILLION}m"
+    }
+    // Left gutter holds the y labels so they never sit on top of the plot
+    val plotLeft = yLabels.maxOf { paint.measureText(it) } + with(density) { 6.dp.toPx() }
 
-        // Gridlines + y labels at each 1M step
-        for (k in 0..steps) {
-            val y = (k / steps.toFloat()) * plotHeight
-            drawLine(borderColor, Offset(0f, y), Offset(plotWidth, y), 1f)
-            val value = (steps - k) * MILLION
-            val label = if (value == 0L) "0" else "${value / MILLION}m"
-            drawContext.canvas.nativeCanvas.drawText(label, 0f, y + labelPx / 3, paint)
+    fun indexAt(x: Float, width: Int): Int {
+        val plotWidth = (width - plotLeft).coerceAtLeast(1f)
+        val clamped = (x - plotLeft).coerceIn(0f, plotWidth)
+        return (clamped / plotWidth * (n - 1).coerceAtLeast(1)).roundToInt().coerceIn(0, n - 1)
+    }
+
+    Canvas(
+        modifier = modifier.pointerInput(pace, n, plotLeft) {
+            detectTapGestures(
+                onPress = { offset ->
+                    onScrub(indexAt(offset.x, size.width))
+                    tryAwaitRelease()
+                },
+            )
+        }.pointerInput(pace, n, plotLeft) {
+            detectHorizontalDragGestures { change, _ ->
+                change.consume()
+                onScrub(indexAt(change.position.x, size.width))
+            }
+        },
+    ) {
+        val plotWidth = size.width - plotLeft
+        // Top inset leaves room for the top y label above its gridline
+        val plotTop = labelPx / 2
+        val plotHeight = size.height - labelPx
+        val plotSpan = plotHeight - plotTop
+
+        // Gridlines + right-aligned y labels at each 1M step
+        for ((k, label) in yLabels.withIndex()) {
+            val y = plotTop + (k / steps.toFloat()) * plotSpan
+            drawLine(borderColor, Offset(plotLeft, y), Offset(size.width, y), 1f)
+            drawContext.canvas.nativeCanvas.drawText(
+                label,
+                plotLeft - 6.dp.toPx() - paint.measureText(label),
+                y + labelPx / 3,
+                paint,
+            )
         }
 
-        fun xFor(index: Int) = if (n <= 1) 0f else index / (n - 1f) * plotWidth
+        fun xFor(index: Int) = plotLeft + if (n <= 1) 0f else index / (n - 1f) * plotWidth
         fun yFor(value: Long): Float =
-            plotHeight - (if (yMax > 0) value / yMax.toFloat() else 0f) * plotHeight
+            plotHeight - (if (yMax > 0) value / yMax.toFloat() else 0f) * plotSpan
 
         // "today" line hidden while scrubbing today
         if (scrubIndex != todayIndex && todayIndex < n) {
-            drawLine(overlayColor, Offset(xFor(todayIndex), 0f), Offset(xFor(todayIndex), plotHeight), 1f)
+            drawLine(overlayColor, Offset(xFor(todayIndex), plotTop), Offset(xFor(todayIndex), plotHeight), 1f)
         }
 
         // Area fill with vertical gradient, revealed left to right on entry
-        if (pace.thisMonth.size >= 2) clipRect(right = plotWidth * reveal) {
+        if (pace.thisMonth.size >= 2) clipRect(right = plotLeft + plotWidth * reveal) {
             val path = monotonePath(pace.thisMonth, ::xFor, ::yFor)
             val area = Path().apply {
                 addPath(path)
@@ -300,7 +314,7 @@ private fun PaceChart(
                 brush = Brush.verticalGradient(
                     0f to primaryColor.copy(alpha = 0.32f),
                     1f to primaryColor.copy(alpha = 0.02f),
-                    startY = 0f,
+                    startY = plotTop,
                     endY = plotHeight,
                 ),
             )
@@ -328,7 +342,7 @@ private fun PaceChart(
         if (hasData && reveal >= 1f && scrubIndex in 0 until n) {
             val x = xFor(scrubIndex)
             // RN scrub guideline: 1.5dp, primary at opacity 0.4
-            drawLine(primaryColor.copy(alpha = 0.4f), Offset(x, 0f), Offset(x, plotHeight), 1.5f)
+            drawLine(primaryColor.copy(alpha = 0.4f), Offset(x, plotTop), Offset(x, plotHeight), 1.5f)
             val avgValue = avgShown.getOrNull(min(scrubIndex, avgShown.size - 1))
             if (avgValue != null && pace.hasRealAverage) {
                 drawCircle(surfaceColor, 4.dp.toPx(), Offset(x, yFor(avgValue)))
@@ -343,12 +357,13 @@ private fun PaceChart(
         }
 
         // X tick labels
-        val textHeight = with(density) { 10.sp.toPx() }
         for (d in labelDays) {
+            val label = d.toString()
+            val labelWidth = paint.measureText(label)
             drawContext.canvas.nativeCanvas.drawText(
-                d.toString(),
-                (xFor(d - 1) - textHeight / 2).coerceIn(0f, plotWidth - textHeight),
-                plotHeight + textHeight * 1.4f,
+                label,
+                (xFor(d - 1) - labelWidth / 2).coerceIn(plotLeft, size.width - labelWidth),
+                plotHeight + labelPx * 1.4f,
                 paint,
             )
         }
