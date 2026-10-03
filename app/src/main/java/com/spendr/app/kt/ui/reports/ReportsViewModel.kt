@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import java.time.YearMonth
 import kotlin.math.roundToLong
 
 class ReportsViewModel(
@@ -43,6 +45,11 @@ class ReportsViewModel(
 
     private val _report = MutableStateFlow(MonthReport(_cursor.value))
     val report: StateFlow<MonthReport> = _report.asStateFlow()
+    private var refreshJob: Job? = null
+
+    /** All-time spending per month; drives the pager's range and the picker's bars. */
+    private val _monthlyTotals = MutableStateFlow<Map<YearMonth, Long>>(emptyMap())
+    val monthlyTotals: StateFlow<Map<YearMonth, Long>> = _monthlyTotals.asStateFlow()
 
     init {
         refresh()
@@ -54,16 +61,19 @@ class ReportsViewModel(
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            val range: DateRange = monthRange(_cursor.value)
+        refreshJob?.cancel()
+        val requestedCursor = _cursor.value
+        refreshJob = viewModelScope.launch {
+            val range: DateRange = monthRange(requestedCursor)
             val total = transactions.totalInRange(range)
             val savings = transactions.savingsInRange(range)
             val daily = transactions.dailyTotals(range)
             val categories = transactions.categoryTotals(range)
             val daysInMonth = localDate(range.end).dayOfMonth
+            _monthlyTotals.value = transactions.monthlyTotals()
 
             _report.value = MonthReport(
-                cursor = _cursor.value,
+                cursor = requestedCursor,
                 total = total.total,
                 count = total.count,
                 savings = savings.total,

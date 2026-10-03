@@ -1,5 +1,6 @@
 package com.spendr.app.kt.data.db
 
+import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.spendr.app.kt.data.db.entity.CategoryEntity
@@ -16,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], application = Application::class)
 class SpendrDatabaseTest {
 
     private lateinit var db: SpendrDatabase

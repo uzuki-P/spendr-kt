@@ -124,6 +124,10 @@ class TransactionRepository(private val db: SpendrDatabase) {
     suspend fun dailyTotals(range: DateRange): List<DailyTotal> =
         dao.dailyTotals(range.start, range.end).map { DailyTotal(it.day, it.total, it.count) }
 
+    /** All-time paidAmount per month that has transactions, oldest first. */
+    suspend fun monthlyTotals(): Map<java.time.YearMonth, Long> =
+        dao.monthlyTotals().associate { java.time.YearMonth.parse(it.month) to it.total }
+
     /** Month-to-date cumulative paidAmount series, length = min(upToDay, daysInMonth). */
     suspend fun cumulativeDailyTotals(range: DateRange, upToDay: Int): List<Long> {
         val daily = dao.dailyTotals(range.start, range.end)

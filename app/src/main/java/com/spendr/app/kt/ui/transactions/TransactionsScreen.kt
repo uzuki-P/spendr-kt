@@ -137,13 +137,16 @@ fun TransactionsScreen(
     onOpenReports: () -> Unit,
     onDuplicate: (Long) -> Unit,
     prefilteredCategoryId: Long? = null,
+    initialMonthCursor: Long? = null,
     onBack: () -> Unit = {},
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
     val scrollBehavior = rememberCollapsingBar()
 
-    var monthCursorState by remember { mutableStateOf(monthCursor(System.currentTimeMillis())) }
+    var monthCursorState by remember {
+        mutableStateOf(monthCursor(initialMonthCursor ?: System.currentTimeMillis()))
+    }
     val months = remember(monthCursorState) {
         monthWindow(System.currentTimeMillis(), include = monthCursorState)
     }

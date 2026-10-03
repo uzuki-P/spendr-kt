@@ -1,5 +1,6 @@
 package com.spendr.app.kt.data.backup
 
+import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.spendr.app.kt.data.db.SpendrDatabase
@@ -16,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], application = Application::class)
 class BackupArchiveTest {
 
     private lateinit var db: SpendrDatabase

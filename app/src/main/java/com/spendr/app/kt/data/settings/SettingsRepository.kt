@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.spendr.app.kt.data.vision.VisionConfiguration
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class ColorSource { DEFAULT, WALLPAPER, USER }
@@ -26,6 +27,7 @@ data class Settings(
     val backupRotation: Int = 7,
     val backupDirectoryUri: String? = null,
     val lastBackupAt: Long? = null,
+    val vision: VisionConfiguration = VisionConfiguration(),
 )
 
 private val Context.settingsStore: DataStore<Preferences> by preferencesDataStore(name = "spendr_settings")
@@ -50,10 +52,25 @@ class SettingsRepository(context: Context) {
             backupRotation = (p[KEY_BACKUP_ROTATION] ?: 7).let { maxOf(1, minOf(365, it)) },
             backupDirectoryUri = p[KEY_BACKUP_DIR],
             lastBackupAt = p[KEY_LAST_BACKUP_AT],
+            vision = VisionConfiguration(
+                url = p[KEY_VISION_URL] ?: VisionConfiguration().url,
+                token = p[KEY_VISION_TOKEN] ?: VisionConfiguration().token,
+                provider = p[KEY_VISION_PROVIDER].orEmpty(),
+                model = p[KEY_VISION_MODEL].orEmpty(),
+                reasoningEffort = p[KEY_VISION_EFFORT].orEmpty(),
+            ),
         )
     }
 
     suspend fun setThemeMode(mode: ThemeMode) = store.edit { it[KEY_THEME_MODE] = mode.name }
+    suspend fun setVision(configuration: VisionConfiguration) = store.edit {
+        val config = configuration.validated(requireToken = false)
+        it[KEY_VISION_URL] = config.url
+        it[KEY_VISION_TOKEN] = config.token
+        it[KEY_VISION_PROVIDER] = config.provider
+        it[KEY_VISION_MODEL] = config.model
+        it[KEY_VISION_EFFORT] = config.reasoningEffort
+    }
     suspend fun setColorSource(source: ColorSource) = store.edit { it[KEY_COLOR_SOURCE] = source.name }
     suspend fun setUserSeed(hex: String?) = store.edit {
         if (hex == null) it.remove(KEY_USER_SEED) else it[KEY_USER_SEED] = hex
@@ -78,6 +95,11 @@ class SettingsRepository(context: Context) {
 
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+        val KEY_VISION_URL = stringPreferencesKey("vision_url")
+        val KEY_VISION_TOKEN = stringPreferencesKey("vision_token")
+        val KEY_VISION_PROVIDER = stringPreferencesKey("vision_provider")
+        val KEY_VISION_MODEL = stringPreferencesKey("vision_model")
+        val KEY_VISION_EFFORT = stringPreferencesKey("vision_effort")
         val KEY_COLOR_SOURCE = stringPreferencesKey("color_source")
         val KEY_USER_SEED = stringPreferencesKey("user_seed")
         val KEY_VIBRATION = stringPreferencesKey("vibration_strength")

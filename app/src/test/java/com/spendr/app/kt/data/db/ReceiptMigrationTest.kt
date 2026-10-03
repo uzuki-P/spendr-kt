@@ -1,5 +1,6 @@
 package com.spendr.app.kt.data.db
 
+import android.app.Application
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
@@ -15,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], application = Application::class)
 class ReceiptMigrationTest {
     @Test fun migrationKeepsExistingTransactionAndAddsReceiptTables() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()

@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,11 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.domain.formatMonthYear
 import com.spendr.app.kt.domain.localDate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.YearMonth
+import kotlin.math.roundToInt
 
 /** Month identity token for a cursor: noon of the 1st, ascending index helper. */
 fun monthWindow(nowCursor: Long, monthsBack: Int = 12, include: Long? = null): List<Long> {
@@ -79,7 +82,11 @@ fun MonthPager(
 ) {
     val nowCursor = months.lastOrNull() ?: selectedCursor
     val initialIndex = months.indexOf(selectedCursor).coerceAtLeast(0)
-    val pagerState = rememberPagerState(initialPage = initialIndex) { months.size }
+    // Extending the window backwards shifts every page index, so start a fresh
+    // pager on the selected month instead of letting the old index pick another.
+    val pagerState = key(months.firstOrNull()) {
+        rememberPagerState(initialPage = initialIndex) { months.size }
+    }
     val density = LocalDensity.current
     val tabScroll = rememberScrollState()
     var tabRowWidth by remember { mutableIntStateOf(0) }
@@ -100,7 +107,7 @@ fun MonthPager(
     // RN scrollTabsToIndex: keep the selected tab centered in the bar
     LaunchedEffect(pagerState.currentPage, tabRowWidth, months.size) {
         if (tabRowWidth == 0) return@LaunchedEffect
-        val tabWidthPx = with(density) { TAB_WIDTH.toPx() }
+        val tabWidthPx = with(density) { TAB_WIDTH.roundToPx() }
         val target = (pagerState.currentPage + 0.5f) * tabWidthPx - tabRowWidth / 2f
         tabScroll.animateScrollTo(target.toInt().coerceIn(0, tabScroll.maxValue))
     }
@@ -122,11 +129,13 @@ fun MonthPager(
                 val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
                 val index = position.toInt().coerceIn(0, months.size - 1)
                 val fraction = (position - index).coerceIn(0f, 1f)
-                val leftDp = TAB_WIDTH * (index + fraction)
+                // Tabs lay out at whole pixels, so step by the rounded width;
+                // fractional dp drifts a few px per tab across long windows.
+                val tabWidthPx = with(density) { TAB_WIDTH.roundToPx() }
                 Box(Modifier.matchParentSize()) {
                     Box(
                         Modifier
-                            .offset(x = leftDp)
+                            .offset { IntOffset((tabWidthPx * (index + fraction)).roundToInt(), 0) }
                             .width(TAB_WIDTH)
                             .padding(horizontal = 6.dp)
                             .height(40.dp)

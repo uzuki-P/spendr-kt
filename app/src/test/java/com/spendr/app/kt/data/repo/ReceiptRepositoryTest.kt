@@ -1,5 +1,6 @@
 package com.spendr.app.kt.data.repo
 
+import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.spendr.app.kt.data.backup.createBackup
@@ -19,7 +20,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], application = Application::class)
 class ReceiptRepositoryTest {
     private lateinit var db: SpendrDatabase
     private lateinit var transactions: TransactionRepository

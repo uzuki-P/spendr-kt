@@ -11,8 +11,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,12 +89,18 @@ import kotlin.math.pow
 fun ReportsScreen(
     viewModel: ReportsViewModel,
     onSeeAll: (Long) -> Unit,
-    onOpenCategory: (Long) -> Unit,
+    onOpenCategory: (categoryId: Long, month: Long) -> Unit,
     onBack: () -> Unit = {},
 ) {
     val report by viewModel.report.collectAsState()
     val cursor by viewModel.cursor.collectAsState()
-    val months = remember(cursor) { monthWindow(System.currentTimeMillis(), include = cursor) }
+    val monthlyTotals by viewModel.monthlyTotals.collectAsState()
+    // Swiping reaches back to the oldest month with transactions.
+    val oldestCursor = monthlyTotals.keys.minOrNull()
+        ?.let { it.atDay(1).atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+    val months = remember(cursor, oldestCursor) {
+        monthWindow(System.currentTimeMillis(), include = minOf(cursor, oldestCursor ?: cursor))
+    }
     var showMonthPicker by remember { mutableStateOf(false) }
     val scrollBehavior = rememberCollapsingBar()
 
@@ -198,7 +204,7 @@ fun ReportsScreen(
                                     category = category,
                                     index = index,
                                     corners = segmentCorners(index, report.categories.size),
-                                    onClick = { onOpenCategory(category.categoryId) },
+                                    onClick = { onOpenCategory(category.categoryId, cursor) },
                                 )
                             }
                         }
@@ -211,6 +217,7 @@ fun ReportsScreen(
     if (showMonthPicker) {
         MonthYearPickerSheet(
             selectedCursor = cursor,
+            monthTotals = monthlyTotals,
             onPick = {
                 viewModel.setCursor(it)
                 showMonthPicker = false
@@ -317,10 +324,13 @@ private fun HeroStat(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
+internal fun DailyTrendChart(report: ReportsViewModel.MonthReport, modifier: Modifier = Modifier) {
     // RN DailyTrendChart constants: plot 132dp tall, 64dp y-axis column
     val axisWidthDp = 64.dp
     val plotHeightDp = 132.dp
+    // Scrubbing also starts this far outside the plot. The layout gives the
+    // margin back so the axis labels keep their distance from the bars.
+    val touchMargin = 8.dp
     val density = LocalDensity.current
     val vibrate = LocalVibrate.current
 
@@ -330,7 +340,9 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
     val cursorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
     val tertiaryLabel = SpendrTheme.colors.textTertiary
 
-    val daily = (1..report.daysInMonth).map { day -> report.daily[day] ?: 0L }
+    val reportDate = localDate(report.cursor)
+    val daysInMonth = reportDate.lengthOfMonth()
+    val daily = (1..daysInMonth).map { day -> report.daily[day] ?: 0L }
     // Bars rise from the baseline with a slight overshoot when the month shows
     val grow = remember(report) { Animatable(0f) }
     LaunchedEffect(report) { grow.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 160f)) }
@@ -343,7 +355,34 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
     val magnitude = 10.0.pow(max(0.0, floor(log10(rawMax)) - 1.0))
     val yMax = ceil(rawMax / magnitude) * magnitude
 
-    Column {
+    val chartGesture = Modifier.pointerInput(report) {
+        val plotStart = with(density) { touchMargin.toPx() }
+        val plotEndPadding = plotStart
+        fun selectAt(x: Float) {
+            val plotWidth = (size.width - plotStart - plotEndPadding).coerceAtLeast(1f)
+            val idx = floor((x - plotStart).coerceIn(0f, plotWidth) / plotWidth * n)
+                .toInt().coerceIn(0, n - 1)
+            if (idx != selected) {
+                selected = idx
+                vibrate()
+            }
+        }
+        // Claim scrubbing from the initial press through release.
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            down.consume()
+            selectAt(down.position.x)
+            do {
+                val event = awaitPointerEvent()
+                event.changes.firstOrNull { it.id == down.id }?.let {
+                    selectAt(it.position.x)
+                }
+                event.changes.forEach { it.consume() }
+            } while (event.changes.any { it.pressed })
+        }
+    }
+
+    Column(modifier) {
         // Selection header: stacked date over amount on surfaceContainerHigh
         Column(
             Modifier
@@ -352,7 +391,7 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
         ) {
             Text(
                 formatDayShort(
-                    localDate(report.cursor).withDayOfMonth((selected + 1).coerceAtMost(report.daysInMonth))
+                    reportDate.withDayOfMonth((selected + 1).coerceIn(1, daysInMonth))
                         .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 ),
                 style = MaterialTheme.typography.labelMedium,
@@ -377,12 +416,16 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
         }
 
         Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.padding(
+                start = 16.dp,
+                end = 16.dp - touchMargin,
+                top = 16.dp - touchMargin,
+                bottom = 16.dp,
+            ),
         ) {
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 // Y axis: three formatRupiahCompact labels at 0 / mid / max
-                Box(Modifier.width(axisWidthDp).height(plotHeightDp)) {
+                Box(Modifier.width(axisWidthDp - touchMargin).height(plotHeightDp)) {
                     listOf(yMax, yMax / 2, 0.0).forEachIndexed { index, value ->
                         Text(
                             formatRupiahCompact(value.toLong()),
@@ -395,77 +438,51 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
                         )
                     }
                 }
-                Canvas(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(plotHeightDp)
-                        .pointerInput(daily) {
-                            fun indexAt(x: Float): Int {
-                                val plotWidth = size.width.toFloat()
-                                val clamped = x.coerceIn(0f, plotWidth)
-                                return floor(clamped / plotWidth * n).toInt().coerceIn(0, n - 1)
-                            }
-                            // RN selectAtX: select + configured haptic only when the day changes
-                            fun selectAt(x: Float) {
-                                val idx = indexAt(x)
-                                if (idx != selected) {
-                                    selected = idx
-                                    vibrate()
-                                }
-                            }
-                            detectTapGestures { offset -> selectAt(offset.x) }
-                        }
-                        .pointerInput(daily) {
-                            detectHorizontalDragGestures { change, _ ->
-                                change.consume()
-                                val plotWidth = size.width.toFloat()
-                                val clamped = change.position.x.coerceIn(0f, plotWidth)
-                                val idx = floor(clamped / plotWidth * n).toInt().coerceIn(0, n - 1)
-                                if (idx != selected) {
-                                    selected = idx
-                                    vibrate()
-                                }
-                            }
-                        },
+                Box(
+                    Modifier.weight(1f).height(plotHeightDp + touchMargin * 2)
+                        .then(chartGesture)
+                        .padding(touchMargin),
                 ) {
-                    val plotWidth = size.width
-                    val plotHeight = size.height
+                    Canvas(Modifier.fillMaxSize()) {
+                        val plotWidth = size.width
+                        val plotHeight = size.height
 
-                    // gridlines at 0 / 50 / 100%
-                    for (fraction in listOf(0f, 0.5f, 1f)) {
-                        val y = plotHeight * fraction
-                        drawLine(gridColor, Offset(0f, y), Offset(plotWidth, y), 1f)
-                    }
-
-                    val slotWidth = plotWidth / n.coerceAtLeast(1)
-                    val barWidth = with(density) {
-                        (slotWidth.toDp() - 2.dp).coerceIn(2.dp, 8.dp).toPx()
-                    }
-                    val barRadius = barWidth / 2f
-
-                    daily.forEachIndexed { index, total ->
-                        val x = (index + 0.5f) * slotWidth
-                        if (total > 0) {
-                            // RN barHeightFor: min 3dp for nonzero days
-                            val barHeight = with(density) {
-                                (plotHeightDp * ((total / yMax).toFloat())).coerceAtLeast(3.dp).toPx()
-                            } * grow.value
-                            drawRoundRect(
-                                color = if (index == selected) primaryBarColor else dimBarColor,
-                                topLeft = Offset(x - barWidth / 2, plotHeight - barHeight),
-                                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
-                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                    minOf(barRadius, (barHeight / 2f).coerceAtLeast(0f)),
-                                ),
-                            )
+                        // gridlines at 0 / 50 / 100%
+                        for (fraction in listOf(0f, 0.5f, 1f)) {
+                            val y = plotHeight * fraction
+                            drawLine(gridColor, Offset(0f, y), Offset(plotWidth, y), 1f)
                         }
-                        if (index == selected) {
-                            drawLine(
-                                cursorColor,
-                                Offset(x, 0f),
-                                Offset(x, plotHeight),
-                                with(density) { 1.5.dp.toPx() },
-                            )
+
+                        val slotWidth = plotWidth / n.coerceAtLeast(1)
+                        val barWidth = with(density) {
+                            (slotWidth.toDp() - 2.dp).coerceIn(2.dp, 8.dp).toPx()
+                        }
+                        val barRadius = barWidth / 2f
+
+                        daily.forEachIndexed { index, total ->
+                            val x = (index + 0.5f) * slotWidth
+                            if (total > 0) {
+                                // RN barHeightFor: min 3dp for nonzero days
+                                val barHeight = with(density) {
+                                    (plotHeightDp * ((total / yMax).toFloat())).coerceAtLeast(3.dp).toPx()
+                                } * grow.value
+                                drawRoundRect(
+                                    color = if (index == selected) primaryBarColor else dimBarColor,
+                                    topLeft = Offset(x - barWidth / 2, plotHeight - barHeight),
+                                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                                        minOf(barRadius, (barHeight / 2f).coerceAtLeast(0f)),
+                                    ),
+                                )
+                            }
+                            if (index == selected) {
+                                drawLine(
+                                    cursorColor,
+                                    Offset(x, 0f),
+                                    Offset(x, plotHeight),
+                                    with(density) { 1.5.dp.toPx() },
+                                )
+                            }
                         }
                     }
                 }
@@ -475,7 +492,7 @@ private fun DailyTrendChart(report: ReportsViewModel.MonthReport) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = axisWidthDp),
+                    .padding(start = axisWidthDp, end = touchMargin),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 listOf(1, ceil(n / 2.0).toInt().coerceAtMost(n), n).forEach { day ->

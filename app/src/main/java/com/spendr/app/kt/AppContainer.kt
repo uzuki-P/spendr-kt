@@ -28,6 +28,7 @@ class AppContainer(context: Application) {
     val quickAdds = QuickAddRepository(database)
     val importExport = ImportExportRepository(database, transactions, categories)
     val settings = SettingsRepository(context)
+    val receiptScans = com.spendr.app.kt.data.vision.ReceiptScanStore(context)
     val vibrator = SpendrVibrator(context)
 
     /** Id of the most recently saved Transaction; drives the Home row pulse. */

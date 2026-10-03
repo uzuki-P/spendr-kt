@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -39,12 +42,14 @@ import java.time.YearMonth
 /**
  * RN MonthYearPicker: year header (chevrons + THIS MONTH pill), year-swipe
  * grid of 12 month cells, future months disabled. Shared by Reports and
- * Transactions for out-of-window month jumps.
+ * Transactions for out-of-window month jumps. When [monthTotals] is given,
+ * each month with transactions gets a bar sized against the year's biggest month.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MonthYearPickerSheet(
     selectedCursor: Long,
+    monthTotals: Map<YearMonth, Long> = emptyMap(),
     onPick: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -117,6 +122,8 @@ fun MonthYearPickerSheet(
                     },
                     label = "yearSlide",
                 ) { year ->
+                    val maxMonthTotal = monthTotals.filterKeys { it.year == year }.values
+                        .maxOrNull()?.coerceAtLeast(1L) ?: 1L
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
                         (0 until 12).chunked(3).forEach { monthsRow ->
                             Row(Modifier.fillMaxWidth()) {
@@ -152,7 +159,10 @@ fun MonthYearPickerSheet(
                                                 .height(56.dp),
                                         ) {
                                             // RN: selection is the filled pill alone, no checkmark
-                                            Box(contentAlignment = Alignment.Center) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center,
+                                            ) {
                                                 Text(
                                                     monthShort(monthIndex),
                                                     style = if (isSelected) {
@@ -167,6 +177,16 @@ fun MonthYearPickerSheet(
                                                         else -> MaterialTheme.colorScheme.onSurface
                                                     },
                                                 )
+                                                monthTotals[YearMonth.of(year, monthIndex + 1)]?.let { total ->
+                                                    MonthSpendBar(
+                                                        fraction = total.toFloat() / maxMonthTotal,
+                                                        color = if (isSelected) {
+                                                            MaterialTheme.colorScheme.onPrimary
+                                                        } else {
+                                                            MaterialTheme.colorScheme.primary
+                                                        },
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -178,6 +198,18 @@ fun MonthYearPickerSheet(
             }
         }
     }
+}
+
+/** Month spending bar: a pill up to 40dp wide, never shorter than a dot. */
+@Composable
+private fun MonthSpendBar(fraction: Float, color: Color) {
+    Box(
+        Modifier
+            .padding(top = 4.dp)
+            .width((40.dp * fraction.coerceIn(0f, 1f)).coerceAtLeast(4.dp))
+            .height(4.dp)
+            .background(color, RoundedCornerShape(50)),
+    )
 }
 
 /** App-bar pill label: short English month + year, e.g. "Sep 2026". */

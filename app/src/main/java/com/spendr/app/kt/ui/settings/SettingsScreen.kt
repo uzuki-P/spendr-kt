@@ -83,6 +83,7 @@ fun SettingsScreen(
     onOpenCategories: () -> Unit,
     onOpenQuickAdd: () -> Unit,
     onOpenDebug: () -> Unit,
+    onOpenReceiptScanner: () -> Unit,
 ) {
     // Null until DataStore emits: the body waits for the stored values so the
     // toggles and swatch panel don't animate over from defaults on every open
@@ -184,6 +185,15 @@ fun SettingsScreen(
                     subtitle = "Rupiah (IDR)",
                 )
             }
+
+            GroupLabel("Receipt scanner")
+            SettingsRow(
+                corners = segmentCorners(0, 1),
+                icon = { CategoryIconBadge("line-scan", "#098396", 40.dp) },
+                title = "Receipt scanner",
+                subtitle = "API connection, token, and scan defaults",
+                onClick = onOpenReceiptScanner,
+            )
 
             GroupLabel("Data")
             SegmentedGroup {
