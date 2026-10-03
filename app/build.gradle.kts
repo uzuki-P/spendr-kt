@@ -19,21 +19,12 @@ android {
         versionName = "0.4.1"
     }
 
-    val visionEnv = rootProject.file("../vision-api/.env")
-    val visionToken = if (visionEnv.isFile) {
-        visionEnv.readLines().firstOrNull { it.startsWith("API_TOKEN=") }
-            ?.substringAfter('=')?.trim()?.trim('"', '\'').orEmpty()
-    } else ""
-    fun quoted(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-
     flavorDimensions += "distribution"
     productFlavors {
         create("mainApp") {
             dimension = "distribution"
             manifestPlaceholders["deepLinkScheme"] = "spendrkt"
             buildConfigField("String", "DEEP_LINK_SCHEME", "\"spendrkt\"")
-            buildConfigField("String", "VISION_API_TOKEN", "\"\"")
-            buildConfigField("String", "VISION_API_URL", "\"\"")
         }
         create("dev") {
             dimension = "distribution"
@@ -41,8 +32,6 @@ android {
             versionNameSuffix = "-dev"
             manifestPlaceholders["deepLinkScheme"] = "spendrktdev"
             buildConfigField("String", "DEEP_LINK_SCHEME", "\"spendrktdev\"")
-            buildConfigField("String", "VISION_API_TOKEN", quoted(visionToken))
-            buildConfigField("String", "VISION_API_URL", quoted("https://vision-api.ts.uzuki-p.my.id"))
         }
     }
 
