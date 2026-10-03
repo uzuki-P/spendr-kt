@@ -2,7 +2,6 @@ package com.spendr.app.kt.data.vision
 
 import android.content.Context
 import android.net.Uri
-import com.spendr.app.kt.BuildConfig
 import com.spendr.app.kt.data.repo.ReceiptItemInput
 import java.net.HttpURLConnection
 import java.net.URL
@@ -20,7 +19,7 @@ data class ScannedReceipt(
 
 data class VisionConfiguration(
     val url: String = "https://vision-api.ts.uzuki-p.my.id",
-    val token: String = BuildConfig.VISION_API_TOKEN,
+    val token: String = "",
     val provider: String = "",
     val model: String = "",
     val reasoningEffort: String = "",
