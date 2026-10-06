@@ -50,6 +50,7 @@ class AddSpendingViewModel(
         val dateMs: Long = System.currentTimeMillis(),
         val editing: Boolean = false,
         val amountError: Boolean = false,
+        val categoryError: Boolean = false,
         val pendingReplace: NoteSuggestion? = null,
         val pendingQuickAddReplace: com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow? = null,
     )
@@ -187,7 +188,7 @@ class AddSpendingViewModel(
     }
 
     fun setCategory(id: Long) {
-        _state.value = _state.value.copy(categoryId = id)
+        _state.value = _state.value.copy(categoryId = id, categoryError = false)
     }
 
     /** Full suggestion prefill; asks before overwriting entered amounts. */
@@ -262,8 +263,10 @@ class AddSpendingViewModel(
         val s = _state.value
         val input = buildInput(s.draft, s.categoryId, s.note, s.merchant, s.dateMs)
         if (input == null) {
-            if (s.categoryId == null) return
-            _state.value = s.copy(amountError = true)
+            _state.value = s.copy(
+                amountError = s.draft.paidAmount <= 0,
+                categoryError = s.categoryId == null,
+            )
             return
         }
         viewModelScope.launch {
