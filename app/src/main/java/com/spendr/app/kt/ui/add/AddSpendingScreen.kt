@@ -390,7 +390,16 @@ fun AddSpendingScreen(
                         label = "Category",
                         value = selectedCategory?.name ?: "Select category",
                         valueMuted = selectedCategory == null,
+                        valueError = state.categoryError,
                         trailingGlyph = "chevron-down",
+                    )
+                }
+                if (state.categoryError) {
+                    Text(
+                        "Select a category to save",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(start = 16.dp),
                     )
                 }
 
@@ -495,6 +504,7 @@ private fun FormRow(
     value: String,
     trailingGlyph: String,
     valueMuted: Boolean = false,
+    valueError: Boolean = false,
 ) {
     MorphSurface(
         onClick = onClick,
@@ -520,7 +530,11 @@ private fun FormRow(
                 Text(
                     value,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (valueMuted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    color = when {
+                        valueError -> MaterialTheme.colorScheme.error
+                        valueMuted -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

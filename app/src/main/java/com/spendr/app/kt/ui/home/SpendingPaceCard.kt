@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -208,6 +209,9 @@ private fun PaceChart(
     val overlayColor = onContainer.copy(alpha = 0.2f)
     val surfaceColor = MaterialTheme.colorScheme.primaryContainer
     val density = LocalDensity.current
+    // The gesture coroutines outlive recompositions; read the latest callback
+    // so its "already selected" check never compares against a stale day.
+    val currentOnScrub by rememberUpdatedState(onScrub)
     val labelPx = with(density) { 10.sp.toPx() }
 
     val n = max(pace.daysInMonth, 1)
@@ -262,14 +266,14 @@ private fun PaceChart(
         modifier = modifier.pointerInput(pace, n, plotLeft) {
             detectTapGestures(
                 onPress = { offset ->
-                    onScrub(indexAt(offset.x, size.width))
+                    currentOnScrub(indexAt(offset.x, size.width))
                     tryAwaitRelease()
                 },
             )
         }.pointerInput(pace, n, plotLeft) {
             detectHorizontalDragGestures { change, _ ->
                 change.consume()
-                onScrub(indexAt(change.position.x, size.width))
+                currentOnScrub(indexAt(change.position.x, size.width))
             }
         },
     ) {
