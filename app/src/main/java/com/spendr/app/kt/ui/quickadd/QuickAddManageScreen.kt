@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,8 +53,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.spendr.app.kt.AppContainer
+import com.spendr.app.kt.domain.QuickAddSuggestion
 import com.spendr.app.kt.domain.formatAmount
 import com.spendr.app.kt.domain.formatRupiah
 import com.spendr.app.kt.domain.parseDigits
@@ -76,6 +79,9 @@ fun QuickAddManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val quickAdds by container.quickAdds.observeQuickAdds().collectAsState(initial = emptyList())
     val categories by container.categories.observeCategories().collectAsState(initial = emptyList())
+    val frequentSpending by produceState(initialValue = emptyList<QuickAddSuggestion>()) {
+        value = container.quickAdds.frequentSpending()
+    }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<com.spendr.app.kt.data.db.dao.QuickAddWithCategoryRow?>(null) }
     val scrollBehavior = rememberCollapsingBar()
@@ -149,8 +155,16 @@ fun QuickAddManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
     }
 
     if (creating) {
+        // Skip suggestions that already exist as a QuickAdd
+        val suggestions = frequentSpending.filter { suggestion ->
+            quickAdds.none {
+                it.quickAdd.categoryId == suggestion.categoryId &&
+                    it.quickAdd.note.equals(suggestion.note, ignoreCase = true)
+            }
+        }
         QuickAddCreateSheet(
             categories = categories,
+            suggestions = suggestions,
             onDismiss = { creating = false },
             onSave = { label, categoryId, amount ->
                 scope.launch {
@@ -191,6 +205,7 @@ fun QuickAddManageScreen(container: AppContainer, onBack: () -> Unit = {}) {
 @Composable
 private fun QuickAddCreateSheet(
     categories: List<com.spendr.app.kt.data.db.entity.CategoryEntity>,
+    suggestions: List<QuickAddSuggestion>,
     onDismiss: () -> Unit,
     onSave: (String, Long, Long) -> Unit,
 ) {
@@ -214,6 +229,32 @@ private fun QuickAddCreateSheet(
                 style = MaterialTheme.typography.headlineSmallEmphasized,
                 modifier = Modifier.padding(start = 4.dp),
             )
+            // Frequent spending fills the form; the user still reviews and saves
+            val shown = suggestions.mapNotNull { suggestion ->
+                categories.firstOrNull { it.id == suggestion.categoryId }?.let { suggestion to it }
+            }
+            if (shown.isNotEmpty()) {
+                Text(
+                    "Often spent in the last 6 months",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+                SegmentedGroup {
+                    shown.forEachIndexed { index, (suggestion, category) ->
+                        FrequentSpendingRow(
+                            suggestion = suggestion,
+                            category = category,
+                            corners = segmentCorners(index, shown.size, outer = 20.dp),
+                            onClick = {
+                                label = suggestion.note
+                                categoryId = suggestion.categoryId
+                                amountStr = suggestion.paidAmount.toString()
+                            },
+                        )
+                    }
+                }
+            }
             ThemedTextField(
                 value = label,
                 onValueChange = { label = it },
@@ -326,6 +367,50 @@ private fun QuickAddCreateSheet(
                     categoryId = it
                     showCategoryPicker = false
                 },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FrequentSpendingRow(
+    suggestion: QuickAddSuggestion,
+    category: com.spendr.app.kt.data.db.entity.CategoryEntity,
+    corners: Corners,
+    onClick: () -> Unit,
+) {
+    MorphSurface(
+        onClick = onClick,
+        corners = corners,
+        pressedCorners = Corners(24.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CategoryIconBadge(icon = category.icon, color = category.color, size = 36.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    suggestion.note,
+                    style = MaterialTheme.typography.bodyLargeEmphasized,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${category.name} • ${suggestion.useCount}×",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                formatRupiah(suggestion.paidAmount),
+                style = MaterialTheme.typography.labelLargeEmphasized,
+                color = SpendrTheme.colors.expense,
             )
         }
     }

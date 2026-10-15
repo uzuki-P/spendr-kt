@@ -26,7 +26,7 @@ class ReceiptMigrationTest {
             old.execSQL("INSERT INTO transactions (id, paid_amount, category_id, date, created_at, updated_at) VALUES (1, 12000, 1, 1000, 0, 0)")
         }
         val db = Room.databaseBuilder(context, SpendrDatabase::class.java, name)
-            .addMigrations(SpendrDatabase.MIGRATION_1_2, SpendrDatabase.MIGRATION_2_3).build()
+            .addMigrations(SpendrDatabase.MIGRATION_1_2, SpendrDatabase.MIGRATION_2_3, SpendrDatabase.MIGRATION_3_4).build()
         try {
             assertEquals("standard", db.transactionDao().getById(1)?.type)
             assertTrue(db.receiptItemDao().listForTransaction(1).isEmpty())
@@ -45,9 +45,23 @@ class ReceiptMigrationTest {
             old.execSQL("INSERT INTO receipt_items (id, transaction_id, name, paid_amount, quantity, sort_order) VALUES (1, 1, 'Eggs', 12000, 2, 0)")
         }
         val db = Room.databaseBuilder(context, SpendrDatabase::class.java, name)
-            .addMigrations(SpendrDatabase.MIGRATION_1_2, SpendrDatabase.MIGRATION_2_3).build()
+            .addMigrations(SpendrDatabase.MIGRATION_1_2, SpendrDatabase.MIGRATION_2_3, SpendrDatabase.MIGRATION_3_4).build()
         try {
             assertEquals("2", db.receiptItemDao().listForTransaction(1).single().quantity)
+        } finally {
+            db.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test fun migrationAddsEmptyQuickAddSuggestionCache() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "quick-add-suggestions-migration-test.db"
+        createOldDatabase(context, name, 3).close()
+        val db = Room.databaseBuilder(context, SpendrDatabase::class.java, name)
+            .addMigrations(SpendrDatabase.MIGRATION_3_4).build()
+        try {
+            assertTrue(db.quickAddDao().cachedSuggestions("2026-01-01").isEmpty())
         } finally {
             db.close()
             context.deleteDatabase(name)
