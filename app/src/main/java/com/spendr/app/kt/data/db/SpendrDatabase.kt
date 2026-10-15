@@ -14,6 +14,7 @@ import com.spendr.app.kt.data.db.entity.CategoryEntity
 import com.spendr.app.kt.data.db.entity.MerchantEntity
 import com.spendr.app.kt.data.db.entity.NoteStatEntity
 import com.spendr.app.kt.data.db.entity.QuickAddEntity
+import com.spendr.app.kt.data.db.entity.QuickAddSuggestionEntity
 import com.spendr.app.kt.data.db.entity.TransactionEntity
 import com.spendr.app.kt.data.db.entity.ReceiptItemEntity
 import androidx.room.migration.Migration
@@ -31,8 +32,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         QuickAddEntity::class,
         NoteStatEntity::class,
         ReceiptItemEntity::class,
+        QuickAddSuggestionEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class SpendrDatabase : RoomDatabase() {
@@ -63,10 +65,15 @@ abstract class SpendrDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_receipt_items_name ON receipt_items(name)")
             }
         }
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""CREATE TABLE IF NOT EXISTS quick_add_suggestions (rank INTEGER NOT NULL, note TEXT NOT NULL, category_id INTEGER NOT NULL, paid_amount INTEGER NOT NULL, use_count INTEGER NOT NULL, latest_date INTEGER NOT NULL, computed_on TEXT NOT NULL, PRIMARY KEY(rank))""")
+            }
+        }
 
         fun build(context: Context): SpendrDatabase =
             Room.databaseBuilder(context, SpendrDatabase::class.java, "spendr.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

@@ -252,6 +252,7 @@ suspend fun restoreBackup(db: SpendrDatabase, bytes: ByteArray): Int {
         db.withTransaction {
         val sql = db.openHelper.writableDatabase
         sql.execSQL("DELETE FROM quick_add")
+        sql.execSQL("DELETE FROM quick_add_suggestions")
         sql.execSQL("DELETE FROM receipt_items")
         sql.execSQL("DELETE FROM transactions")
         sql.execSQL("DELETE FROM note_stats")

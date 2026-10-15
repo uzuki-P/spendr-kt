@@ -101,6 +101,8 @@ class ImportExportRepository(
     // --- import ---
 
     suspend fun importCsv(content: String, format: CsvFormat): ImportResult = db.withTransaction {
+        // Imported Transactions change the frequency counts behind QuickAdd suggestions
+        db.quickAddDao().clearSuggestions()
         val categoryList = categories.listCategories()
         val byName = categoryList.associateBy { it.name.trim().lowercase() }.toMutableMap()
         // RN buildImportContext: the palette cursor starts after the existing
